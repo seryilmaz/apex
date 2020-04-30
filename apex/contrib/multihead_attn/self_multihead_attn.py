@@ -79,6 +79,32 @@ class SelfMultiheadAttn(nn.Module):
             else:
                 self.lyr_nrm.reset_parameters()
 
+    def parameters(self, recurse=True):
+        q_weight, k_weight, v_weight = self.in_proj_weight.view(self.num_heads, 3, self.dim_heads, self.embed_dim).split(1, dim=1)
+        q_bias, k_bias, v_bias = self.in_proj_bias.view(self.num_heads, 3, self.dim_heads).split(1, dim=1)
+        params = [q_weight, k_weight, v_weight, self.out_proj_weight]
+        if self.bias:
+            params += [q_bias, k_bias, v_bias, self.out_proj_bias]
+        if self.include_norm_add:
+            params += [lyr_norm_gamma_weights, lyr_norm_beta_weights]
+        for pi in params:
+            yield pi
+
+    def named_parameters(self, prefix='', recurse=True):
+        q_weight, k_weight, v_weight = self.in_proj_weight.view(self.num_heads, 3, self.dim_heads, self.embed_dim).split(1, dim=1)
+        q_bias, k_bias, v_bias = self.in_proj_bias.view(self.num_heads, 3, self.dim_heads).split(1, dim=1)
+        names = ['q_weight', 'k_weight', 'v_weight', 'out_proj_weight']
+        params = [q_weight, k_weight, v_weight, self.out_proj_weight]
+        if self.bias:
+            names += ['q_bias', 'k_bias', 'v_bias', 'out_proj_bias']
+            params += [q_bias, k_bias, v_bias, self.out_proj_bias]
+        if self.include_norm_add:
+            names += ['lyr_norm_gamma_weights', 'lyr_norm_beta_weights']
+            params += [lyr_norm_gamma_weights, lyr_norm_beta_weights]
+        for ni, pi in zip(names, params):
+            yield ni, pi
+
+
     def forward(self, query, key, value, key_padding_mask=None, need_weights=False, attn_mask=None, is_training=True):
         """Input shape: Time x Batch x Channel
 
