@@ -3,9 +3,10 @@ from torch import nn
 from torch.nn import Parameter
 import torch.nn.functional as F
 
-from .self_multihead_attn_func               import self_attn_func
-from .fast_self_multihead_attn_func          import fast_self_attn_func
-from .fast_self_multihead_attn_norm_add_func import fast_self_attn_norm_add_func
+from .self_multihead_attn_func                import self_attn_func
+from .fast_self_multihead_attn_func           import fast_self_attn_func
+from .fast_self_multihead_attn_with_bias_func import fast_self_attn_with_bias_func
+from .fast_self_multihead_attn_norm_add_func  import fast_self_attn_norm_add_func
 
 
 @torch.jit.script
@@ -36,7 +37,6 @@ class SelfMultiheadAttn(nn.Module):
         self.in_proj_weight  = Parameter(torch.Tensor(3*embed_dim, embed_dim))
         self.out_proj_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
         if self.bias:
-            assert impl != 'fast', "ERROR! The Fast implementation does not support biases!"
             self.in_proj_bias = Parameter(torch.Tensor(3*embed_dim))
             self.out_proj_bias = Parameter(torch.Tensor(embed_dim))
         else:
@@ -57,12 +57,14 @@ class SelfMultiheadAttn(nn.Module):
                 self.lyr_nrm = torch.nn.LayerNorm(embed_dim)
         self.reset_parameters()
 
+        # bias not implemented for fast mode with layer norm
         if self.include_norm_add:
-            if   impl == 'fast'    : self.attn_func = fast_self_attn_norm_add_func
+            if   impl == 'fast' and not self.bias   : self.attn_func = fast_self_attn_norm_add_func
             elif impl == 'default' : self.attn_func = self_attn_func
             else :                   assert False, "Unsupported impl: {} !".format(impl)
         else:
-            if   impl == 'fast'    : self.attn_func = fast_self_attn_func
+            if   impl == 'fast' and self.bias   : self.attn_func = fast_self_attn_with_bias_func
+            elif impl == 'fast'    : self.attn_func = fast_self_attn_func
             elif impl == 'default' : self.attn_func = self_attn_func
             else :                   assert False, "Unsupported impl: {} !".format(impl)
 
@@ -114,7 +116,9 @@ class SelfMultiheadAttn(nn.Module):
         else:
             if self.impl == 'fast':
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query,
-                                         self.in_proj_weight, self.out_proj_weight, mask, self.dropout)
+                                         self.in_proj_weight, self.out_proj_weight,
+                                         self.in_proj_bias, self.out_proj_bias,
+                                         mask, self.dropout)
             else:
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query,
                                          self.in_proj_weight, self.out_proj_weight,
