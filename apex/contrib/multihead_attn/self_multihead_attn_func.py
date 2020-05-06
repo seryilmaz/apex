@@ -197,7 +197,7 @@ class SelfAttnFunc(torch.autograd.Function):
         softmax_grads = torch._softmax_backward_data(dropout_grads, softmax_results, -1, softmax_results)
 
         # Matmul1 - DGRAD1
-        # Input1: (data grads)  [seqs*heads, seql_q, seql_k]
+        # Input1: (data grads)  [seqs*heads, seql_q, seql_k] 
         # Input2: (activations) [seql_k, seqs*heads, head_dim] transpose(0,1)
         # Output:               [seqs*heads, seql_q, head_dim] transpose(0,1)
         # GEMM: Per batch: ( seql_q x seql_k ) x ( seql_k x head_dim ) = ( seql_q x head_dim )
@@ -213,7 +213,7 @@ class SelfAttnFunc(torch.autograd.Function):
 
         # Input Linear GEMM - DGRAD
         # input1: (data grads) [seql_q, seqs, 3*embed_dim(3072)]
-        # input2: (weights)    [embed_dim*3 (3072), embed_dim (1024)]
+        # input2: (weights)    [embed_dim*3 (3072), embed_dim (1024)] 
         # output:              [seql_q, seqs, embed_dim]
         # GEMM: ( (seql_q*seqs) x 3*embed_dim ) x ( 3*embed_dim x embed_dim ) = (seql_q*seqs x embed_dim)
         input_lin_results_grads = input_lin_results_grads.view(inputs.size(0)*inputs.size(1), heads_t[0]*3*head_dim)
@@ -221,7 +221,7 @@ class SelfAttnFunc(torch.autograd.Function):
         input_grads = input_grads.view(inputs.size(0), inputs.size(1), inputs.size(2))
         # Input Linear GEMM - WGRAD
         # input1: (data grads)  [seql_q*seqs, 3*embed_dim(3072)]
-        # input2: (activations) [seql_q*seqs, embed_dim(1024)]
+        # input2: (activations) [seql_q*seqs, embed_dim(1024)] 
         # output:               [3*embed_dim, embed_dim]
         # GEMM: ( 3*embed_dim x seql_q*seqs ) x ( seql_q*seqs x embed_dim ) = (3*embed_dim x embed_dim)
         input_weight_grads = torch.mm(input_lin_results_grads.transpose(0,1), inputs.view(inputs.size(0)*inputs.size(1), inputs.size(2)))

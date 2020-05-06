@@ -6,10 +6,10 @@ namespace self {
 namespace cublas_gemmex {
 
 std::vector<torch::Tensor> fwd_cuda(
-                               bool                 use_time_mask,
+                               bool                 use_time_mask,  
                                bool                 is_training,
                                int                  heads,
-                               torch::Tensor const& inputs,
+                               torch::Tensor const& inputs, 
                                torch::Tensor const& input_weights,
                                torch::Tensor const& output_weights,
                                const uint8_t*       pad_mask,
@@ -18,12 +18,12 @@ std::vector<torch::Tensor> fwd_cuda(
 
 std::vector<torch::Tensor> bwd_cuda(
                                int                  heads,
-                               torch::Tensor const& output_grads,
+                               torch::Tensor const& output_grads, 
                                torch::Tensor const& matmul2_results,
                                torch::Tensor const& dropout_results,
                                torch::Tensor const& softmax_results,
                                torch::Tensor const& input_lin_results,
-                               torch::Tensor const& inputs,
+                               torch::Tensor const& inputs, 
                                torch::Tensor const& input_weights,
                                torch::Tensor const& output_weights,
                                torch::Tensor const& dropout_mask,
@@ -51,35 +51,35 @@ std::vector<torch::Tensor> fwd(
   AT_ASSERTM(input_weights.dim()  == 2, "expected 2D tensor");
   AT_ASSERTM(output_weights.dim() == 2, "expected 2D tensor");
 
-  // AT_ASSERTM(inputs.type().scalarType()         == at::ScalarType::Half, "Only HALF is supported");
-  // AT_ASSERTM(input_weights.type().scalarType()  == at::ScalarType::Half, "Only HALF is supported");
-  // AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(inputs.type().scalarType()         == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(input_weights.type().scalarType()  == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(output_weights.type().scalarType() == at::ScalarType::Half, "Only HALF is supported");
 
   if (use_mask) {
   	AT_ASSERTM(pad_mask.dim()                     == 2,                    "expected 2D tensor");
   	AT_ASSERTM(pad_mask.type().scalarType()       == at::ScalarType::Byte, "Only BYTE is supported");
   }
-
+  
   return fwd_cuda(
                                  use_time_mask,
                                  is_training,
-                                 heads,
-                                 inputs,
-                                 input_weights,
-                                 output_weights,
-                                 use_mask ? static_cast<const uint8_t*>(pad_mask.data_ptr()) : nullptr,
+                                 heads, 
+                                 inputs, 
+                                 input_weights, 
+                                 output_weights, 
+                                 use_mask ? static_cast<const uint8_t*>(pad_mask.data_ptr()) : nullptr, 
                                  dropout_prob
                                 );
 }
 
 std::vector<torch::Tensor> bwd(
                                int                  heads,
-                               torch::Tensor const& output_grads,
+                               torch::Tensor const& output_grads, 
                                torch::Tensor const& matmul2_results,
                                torch::Tensor const& dropout_results,
                                torch::Tensor const& softmax_results,
                                torch::Tensor const& input_lin_results,
-                               torch::Tensor const& inputs,
+                               torch::Tensor const& inputs, 
                                torch::Tensor const& input_weights,
                                torch::Tensor const& output_weights,
                                torch::Tensor const& dropout_mask,
@@ -95,28 +95,28 @@ std::vector<torch::Tensor> bwd(
   AT_ASSERTM(input_weights.dim()     == 2, "expected 2D tensor");
   AT_ASSERTM(output_weights.dim()    == 2, "expected 2D tensor");
   AT_ASSERTM(dropout_mask.dim()      == 3, "expected 3D tensor");
-//
-//  AT_ASSERTM(output_grads.type().scalarType()      == at::ScalarType::Half, "Only HALF is supported");
-//  AT_ASSERTM(matmul2_results.type().scalarType()   == at::ScalarType::Half, "Only HALF is supported");
-//  AT_ASSERTM(dropout_results.type().scalarType()   == at::ScalarType::Half, "Only HALF is supported");
-//  AT_ASSERTM(softmax_results.type().scalarType()   == at::ScalarType::Half, "Only HALF is supported");
-//  AT_ASSERTM(input_lin_results.type().scalarType() == at::ScalarType::Half, "Only HALF is supported");
-//  AT_ASSERTM(inputs.type().scalarType()            == at::ScalarType::Half, "Only HALF is supported");
-//  AT_ASSERTM(input_weights.type().scalarType()     == at::ScalarType::Half, "Only HALF is supported");
-//  AT_ASSERTM(output_weights.type().scalarType()    == at::ScalarType::Half, "Only HALF is supported");
-//  AT_ASSERTM(dropout_mask.type().scalarType()      == at::ScalarType::Byte, "Only BYTE is supported");
-
+  
+  AT_ASSERTM(output_grads.type().scalarType()      == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(matmul2_results.type().scalarType()   == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(dropout_results.type().scalarType()   == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(softmax_results.type().scalarType()   == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(input_lin_results.type().scalarType() == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(inputs.type().scalarType()            == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(input_weights.type().scalarType()     == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(output_weights.type().scalarType()    == at::ScalarType::Half, "Only HALF is supported");
+  AT_ASSERTM(dropout_mask.type().scalarType()      == at::ScalarType::Byte, "Only BYTE is supported");
+  
   return bwd_cuda(
-                                 heads,
+                                 heads, 
                                  output_grads,
                                  matmul2_results,
                                  dropout_results,
-                                 softmax_results,
-                                 input_lin_results,
-                                 inputs,
+                                 softmax_results, 
+                                 input_lin_results, 
+                                 inputs, 
                                  input_weights,
                                  output_weights,
-                                 dropout_mask,
+                                 dropout_mask, 
                                  dropout_prob
                                 );
 }
