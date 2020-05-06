@@ -113,12 +113,12 @@ class SelfMultiheadAttn(nn.Module):
                     outputs = outputs + query
         else:
             if self.impl == 'fast':
-                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query,
+                outputs , gemm1, bmm1, masked ,sf, drop, drop_mask ,bmm2 = self.attn_func(attn_mask is not None, is_training, self.num_heads, query,
                                          self.in_proj_weight, self.out_proj_weight, mask, self.dropout)
             else:
-                outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query,
+                outputs , gemm1, bmm1, masked ,sf, drop, drop_mask ,bmm2 = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query,
                                          self.in_proj_weight, self.out_proj_weight,
                                          self.in_proj_bias, self.out_proj_bias,
                                          mask, self.dropout)
 
-        return outputs,None
+        return outputs, gemm1, bmm1, masked ,sf, drop, drop_mask ,bmm2

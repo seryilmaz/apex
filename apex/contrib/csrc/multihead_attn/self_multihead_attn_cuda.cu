@@ -115,7 +115,7 @@ std::vector<torch::Tensor> fwd_cuda_impl(
                              output_lin_dim,
                              CUDA_R_32F,
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
-
+ 
   // MatMul1 of Dot-Product Attention Plus scaling by 1/Sqrt(head size)
   gemm_switch_fp32accum(     state,
                              a_layout_t,
@@ -135,7 +135,7 @@ std::vector<torch::Tensor> fwd_cuda_impl(
                              k_seq_len,
                              k_seq_len*q_seq_len,
                              attn_batches);
-
+  auto  matmul1_results = softmax_results.clone().detach();
   // Padded Softmax
   bool softmax_success = false;
   if (pad_mask == nullptr) {
@@ -166,7 +166,7 @@ std::vector<torch::Tensor> fwd_cuda_impl(
                              attn_batches*q_seq_len/sequences);
     }
   }
-  assert(softmax_success);
+
 
   if (is_training) {
     apex_fused_dropout_cuda<T,float,uint32_t>(
@@ -223,7 +223,8 @@ std::vector<torch::Tensor> fwd_cuda_impl(
   THCublasCheck(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
 
   return {
-           input_lin_results,
+           input_lin_results,  
+           matmul1_results,
            softmax_results,
            dropout_results,
            dropout_mask,

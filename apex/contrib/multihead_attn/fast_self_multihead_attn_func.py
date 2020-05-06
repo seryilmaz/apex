@@ -11,6 +11,7 @@ class FastSelfAttnFunc(torch.autograd.Function) :
         use_mask       = (pad_mask is not None)
 
         input_lin_results,                                              \
+        matmul1_results,                                              \
         softmax_results,                                                \
         dropout_results,                                                \
         dropout_mask,                                                   \
@@ -38,7 +39,7 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                               dropout_mask,                             \
                               dropout_prob_t)
 
-        return outputs.detach()
+        return outputs.detach(), input_lin_results.detach(), matmul1_results.detach(), matmul1_results.detach(), softmax_results.detach(), dropout_results.detach(), dropout_mask.detach(), matmul2_results.detach()
 
     @staticmethod
     def backward(ctx, output_grads):
