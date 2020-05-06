@@ -295,7 +295,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              embed_dim,
                              CUDA_R_32F,
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
- 
+  auto gemm2_probe = output_lin_grads.clone().detach(); 
   // Output Linear Wgrad
   THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_N, 
@@ -335,7 +335,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<half*>(matmul2_grads.data_ptr()),
                              k_seq_len, 
                              k_seq_len*q_seq_len,
-                             attn_batches);
+                             attn_batches);//gemm2_probe, bmm2_probe, drop_probe, softmax_probe, bmm1_probe
+  auto bmm2_probe = matmul2_grads.clone().detach();
   
   // Matmul2 Dgrad2
   gemm_switch_fp32accum(     state, 
@@ -358,24 +359,29 @@ std::vector<torch::Tensor> bwd_cuda(
                              attn_batches);
 
   // Apply Dropout Mask and Scale by Dropout Probability 
-  apex_masked_scale_cuda<half,float,uint32_t>(
-                             static_cast<half const*>(matmul2_grads.data_ptr()),
-                             static_cast<half*>(matmul2_grads.data_ptr()),
-                             static_cast<uint8_t const*>(dropout_mask.data_ptr()),
-                             dropout_elems,
-                             (1.0 / (1.0 - dropout_prob)));
-
+//  apex_masked_scale_cuda<half,float,uint32_t>(
+//                             static_cast<half const*>(matmul2_grads.data_ptr()),
+//                             static_cast<half*>(matmul2_grads.data_ptr()),
+//                             static_cast<uint8_t const*>(dropout_mask.data_ptr()),
+//                             dropout_elems,
+//                             (1.0 / (1.0 - dropout_prob)));
+//
+  auto drop_probe = matmul2_grads.clone().detach();
   // Softmax Grad
   bool softmax_success = false;
-  softmax_success = dispatch_softmax_backward<half, half, float>(
-                             static_cast<half*>(matmul2_grads.data_ptr()), 
-                             static_cast<half*>(matmul2_grads.data_ptr()), 
-                             reinterpret_cast<half const*>(softmax_results.data_ptr()),
-                             k_seq_len,
-                             k_seq_len,
-                             attn_batches*q_seq_len);
-  assert(softmax_success);
+  //at::Tensor softmax_grads   = torch::empty_like(matmul2_grads);
+  
+//  softmax_success = dispatch_softmax_backward<half, half, float>(
+//                             static_cast<half*>(softmax_grads.data_ptr()), 
+//                             static_cast<half*>(matmul2_grads.data_ptr()), 
+//                             reinterpret_cast<half const*>(softmax_results.data_ptr()),
+//                             k_seq_len,
+//                             k_seq_len,
+//                             attn_batches*q_seq_len);
 
+  auto softmax_grads = matmul2_grads; //at::_softmax_backward_data(matmul2_grads, softmax_results,-1, softmax_results);
+//  assert(softmax_success);
+  auto softmax_probe = softmax_grads.clone().detach();
   // Matmul1 Dgrad1
   gemm_switch_fp32accum(     state, 
                              a_layout_n, 
@@ -387,7 +393,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              k_lin_results_ptr, 
                              lead_dim, 
                              batch_stride, 
-                             static_cast<half*>(matmul2_grads.data_ptr()),
+                             static_cast<half*>(softmax_grads.data_ptr()),
                              k_seq_len, 
                              k_seq_len*q_seq_len, 
                              beta, 
@@ -407,7 +413,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              q_lin_results_ptr, 
                              lead_dim, 
                              batch_stride, 
-                             static_cast<half*>(matmul2_grads.data_ptr()),
+                             static_cast<half*>(softmax_grads.data_ptr()),
                              k_seq_len, 
                              k_seq_len*q_seq_len, 
                              beta, 
@@ -415,7 +421,11 @@ std::vector<torch::Tensor> bwd_cuda(
                              lead_dim, 
                              batch_stride, 
                              attn_batches);
-
+//  auto bmm1_probe = input_lin_output_grads.clone().detach().view({k_seq_len*sequences,output_lin_dim});
+auto bmm1_probe = torch::empty_like(input_lin_output_grads).view({k_seq_len*sequences,output_lin_dim});
+//  std::cout<<"input_lin_results_grad_ptr, inputs_ptr, weights_ptr "<<std::hex<<input_lin_output_grads.data_ptr()<<" "<<inputs.data_ptr()<<" "<<input_weights.data_ptr()<<std::endl;
+  std::cout<<"contiguous? input_lin_results_grad_ptr, inputs_ptr, weights_ptr "<<input_lin_output_grads.is_contiguous()<<" "<<inputs.is_contiguous()<<" "<<input_weights.is_contiguous()<<std::endl;
+//  std::cout<<"q grad pointer "<<std::hex<<q_lin_grads_ptr<<std::endl;
   // Input Linear Dgrad  
   THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_N, 
@@ -427,7 +437,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<const void*>(input_weights.data_ptr()),
                              CUDA_R_16F, 
                              embed_dim,
-                             static_cast<const void*>(q_lin_grads_ptr),
+			     static_cast<const void*>(input_lin_output_grads.data_ptr()),
+                             //static_cast<const void*>(q_lin_grads_ptr),
                              CUDA_R_16F, 
                              output_lin_dim, 
                              static_cast<const void*>(&beta),
@@ -463,7 +474,7 @@ std::vector<torch::Tensor> bwd_cuda(
   return { 
            input_grads, 
            input_weight_grads, 
-           output_weight_grads
+           output_weight_grads, gemm2_probe, bmm2_probe, drop_probe, softmax_probe, bmm1_probe
          };
 }
 

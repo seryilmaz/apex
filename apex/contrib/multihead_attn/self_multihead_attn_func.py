@@ -6,7 +6,7 @@ class SelfAttnFunc(torch.autograd.Function):
     def forward(ctx, use_time_mask, is_training, heads, scale, inputs,
                 input_weights, output_weights,
                 input_biases, output_biases,
-                mask, dropout_prob):
+                mask, dropout_prob,gemm2_probe, bmm2_probe, drop_probe, softmax_probe, bmm1_probe):
         use_biases_t   = torch.tensor([input_biases is not None])
         heads_t        = torch.tensor([heads])
         scale_t        = torch.tensor([scale])
@@ -91,8 +91,8 @@ class SelfAttnFunc(torch.autograd.Function):
         # GEMM: Per batch: ( seql_q x seql_k ) x ( seql_k x head_dim ) = (seql_q x head_dim)
         matmul2_results = torch.empty((dropout_results.size(1), dropout_results.size(0), values.size(2)), dtype=dropout_results.dtype, device=torch.device('cuda')).transpose(1,0)
         matmul2_results = torch.bmm(dropout_results, values.transpose(0,1), out=matmul2_results)
+        bmm2 = matmul2_results.transpose(0,1).contiguous().clone().detach()
         matmul2_results = matmul2_results.transpose(0, 1).contiguous().view(inputs.size(0), inputs.size(1), inputs.size(2))
-        bmm2 = matmul2_results.clone().detach()
         # Output Linear GEMM
         # Input1: (activations) [seql_q, seqs, embed_dim=heads*head_dim]
         # Input2: (weights)     [ embed_dim, embed_dim ] transpose(0,1)
@@ -120,7 +120,7 @@ class SelfAttnFunc(torch.autograd.Function):
                               dropout_mask,                             \
                               dropout_prob_t)
 
-        return outputs.detach(), gemm1, bmm1, masked ,sf, drop, drop_mask ,bmm2
+        return outputs.detach()#, gemm1, bmm1, masked ,sf, drop, drop_mask ,bmm2
 
     @staticmethod
     def backward(ctx, output_grads):
@@ -162,6 +162,7 @@ class SelfAttnFunc(torch.autograd.Function):
         # Output:               [ seql_q, seqs, embed_dim ]
         # GEMM: ( seql_q*seqs x embed_dim ) x ( embed_dim x embed_dim ) = ( seql_q*seqs x embed_dim )
         output_lin_grads = torch.mm(output_grads.view(output_grads.size(0) * output_grads.size(1), output_grads.size(2)), output_weights)
+        gemm2_probe = output_lin_grads.view(output_grads.size(0),output_grads.size(1)*heads_t[0], head_dim).clone().detach()
         output_lin_grads = output_lin_grads.view(output_grads.size(0), output_grads.size(1), output_weights.size(1))
         # Output Linear GEMM - WGRAD
         # Input1: (data grads)  [seql_q*seqs, embed_dim=heads*head_dim] transpose(0,1)
@@ -183,6 +184,7 @@ class SelfAttnFunc(torch.autograd.Function):
         # Output:               [seqs*heads, seql_q, seql_k]
         # GEMM: Per batch: ( seql_q x head_dim ) x ( head_dim x seql_k ) = ( seql_q x seql_k )
         matmul2_dgrad1 = torch.bmm(output_lin_grads, values.transpose(0,1).transpose(1,2))
+        bmm2_probe = matmul2_dgrad1.clone().detach()
         # Matmul2 - DGRAD2
         # Input1: (data grads)  [seql_q, seqs*heads, head_dim] transpose(0,1)
         # Input2: (activations) [seql_k, seqs*heads, head_dim] transpose(0,1).transpose(1,2)
@@ -191,11 +193,11 @@ class SelfAttnFunc(torch.autograd.Function):
         values_grads   = torch.bmm(dropout_results.transpose(1,2), output_lin_grads, out=values_grads.transpose(0,1))
 
         # Mask and Scaling for Dropout (not a publically documented op)
-        dropout_grads = torch._masked_scale(matmul2_dgrad1, dropout_mask, 1.0/(1.0-dropout_prob_t[0]))
-
+        dropout_grads = matmul2_dgrad1#torch._masked_scale(matmul2_dgrad1, dropout_mask, 1.0/(1.0-dropout_prob_t[0]))
+        drop_probe = dropout_grads.clone().detach()
         # Softmax Grad (not a publically documented op)
-        softmax_grads = torch._softmax_backward_data(dropout_grads, softmax_results, -1, softmax_results)
-
+        softmax_grads = dropout_grads#torch._softmax_backward_data(dropout_grads, softmax_results, -1, softmax_results)
+        softmax_probe = softmax_grads.clone().detach()
         # Matmul1 - DGRAD1
         # Input1: (data grads)  [seqs*heads, seql_q, seql_k] 
         # Input2: (activations) [seql_k, seqs*heads, head_dim] transpose(0,1)
@@ -211,12 +213,15 @@ class SelfAttnFunc(torch.autograd.Function):
         keys_grads    = torch.baddbmm(keys_grads.transpose(0,1), softmax_grads.transpose(1,2), queries.transpose(0,1),
                                       out=keys_grads.transpose(0,1), beta=0.0, alpha=scale_t[0])
 
+        print("input_lin_results_grad_ptr, inputs_ptr, weights_ptr", hex(input_lin_results_grads.data_ptr()), hex(inputs.data_ptr()), hex(input_weights.data_ptr())  )
         # Input Linear GEMM - DGRAD
         # input1: (data grads) [seql_q, seqs, 3*embed_dim(3072)]
         # input2: (weights)    [embed_dim*3 (3072), embed_dim (1024)] 
         # output:              [seql_q, seqs, embed_dim]
         # GEMM: ( (seql_q*seqs) x 3*embed_dim ) x ( 3*embed_dim x embed_dim ) = (seql_q*seqs x embed_dim)
         input_lin_results_grads = input_lin_results_grads.view(inputs.size(0)*inputs.size(1), heads_t[0]*3*head_dim)
+        bmm1_probe = torch.empty_like(input_lin_results_grads)#input_lin_results_grads.clone().detach()
+        print("is_cont", input_lin_results_grads.is_contiguous(), inputs.is_contiguous(), input_weights.is_contiguous())
         input_grads = torch.mm(input_lin_results_grads, input_weights)
         input_grads = input_grads.view(inputs.size(0), inputs.size(1), inputs.size(2))
         # Input Linear GEMM - WGRAD
@@ -235,6 +240,6 @@ class SelfAttnFunc(torch.autograd.Function):
                input_grads,                              \
                input_weight_grads, output_weight_grads,  \
                input_bias_grads, output_bias_grads,      \
-               None, None
+               None, None,gemm2_probe, bmm2_probe, drop_probe, softmax_probe, bmm1_probe
 
 self_attn_func = SelfAttnFunc.apply

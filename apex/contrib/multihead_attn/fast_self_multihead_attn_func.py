@@ -4,7 +4,7 @@ import fast_self_multihead_attn
 
 class FastSelfAttnFunc(torch.autograd.Function) :
     @staticmethod
-    def forward(ctx, use_time_mask, is_training, heads, inputs, input_weights, output_weights, pad_mask, dropout_prob):
+    def forward(ctx, use_time_mask, is_training, heads, inputs, input_weights, output_weights, pad_mask, dropout_prob,gemm2_probe, bmm2_probe, drop_probe, softmax_probe, bmm1_probe ):
         heads_t        = torch.tensor([heads])
         dropout_prob_t = torch.tensor([dropout_prob])
         null_tensor    = torch.tensor([])
@@ -39,7 +39,7 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                               dropout_mask,                             \
                               dropout_prob_t)
 
-        return outputs.detach(), input_lin_results.detach(), matmul1_results.detach(), matmul1_results.detach(), softmax_results.detach(), dropout_results.detach(), dropout_mask.detach(), matmul2_results.detach()
+        return outputs.detach()#, input_lin_results.detach(), matmul1_results.detach(), matmul1_results.detach(), softmax_results.detach(), dropout_results.detach(), dropout_mask.detach(), matmul2_results.detach()
 
     @staticmethod
     def backward(ctx, output_grads):
@@ -56,7 +56,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
 
         input_grads,                                                    \
         input_weight_grads,                                             \
-        output_weight_grads =                                           \
+        output_weight_grads ,                                           \
+        gemm2_probe, bmm2_probe, drop_probe, softmax_probe, bmm1_probe= \
             fast_self_multihead_attn.backward(                          \
                               heads_t[0],                               \
                               output_grads,                             \
@@ -70,6 +71,6 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                               dropout_mask,                             \
                               dropout_prob_t[0])
 
-        return None, None, None, input_grads, input_weight_grads, output_weight_grads, None, None
+        return None, None, None, input_grads, input_weight_grads, output_weight_grads, None, None,gemm2_probe, bmm2_probe, drop_probe, softmax_probe, bmm1_probe
 
 fast_self_attn_func = FastSelfAttnFunc.apply
