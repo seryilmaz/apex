@@ -20,7 +20,7 @@
 extern THCState *state;
 
 namespace multihead_attn {
-namespace self {
+namespace self_bias {
 namespace cublas_gemmex {
 
 std::vector<torch::Tensor> fwd_cuda(
@@ -30,6 +30,8 @@ std::vector<torch::Tensor> fwd_cuda(
                                torch::Tensor const& inputs, 
                                torch::Tensor const& input_weights,
                                torch::Tensor const& output_weights,
+                               torch::Tensor const& input_biases,
+                               torch::Tensor const& output_biases,
                                const uint8_t*       pad_mask,
                                float                dropout_prob
                                    ) 
@@ -46,7 +48,8 @@ std::vector<torch::Tensor> fwd_cuda(
   const int   batch_stride   = 3 * head_dim;
   const int   dropout_elems  = attn_batches * q_seq_len * k_seq_len;
   const float alpha          = 1.0;
-  const float beta           = 0.0;
+  const float beta_zero       = 0.0;
+  const float beta_one           = 1.0;
   const float scale          = 1.0 / sqrt(static_cast<float>(head_dim));
  
   // There is no reason to use more than one stream as every kernel is 
@@ -80,6 +83,7 @@ std::vector<torch::Tensor> fwd_cuda(
 
   THCublasCheck(cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH));
   // Input Linear Fwd
+  input_lin_results.copy_(input_biases);
   THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_T, 
                              CUBLAS_OP_N,
@@ -93,7 +97,7 @@ std::vector<torch::Tensor> fwd_cuda(
                              static_cast<const void*>(inputs.data_ptr()),
                              CUDA_R_16F, 
                              embed_dim, 
-                             static_cast<const void*>(&beta),
+                             static_cast<const void*>(&beta_one),
                              q_lin_results_ptr,
                              CUDA_R_16F, 
                              output_lin_dim,
@@ -114,7 +118,7 @@ std::vector<torch::Tensor> fwd_cuda(
                              static_cast<const half*>(q_lin_results_ptr),
                              lead_dim, 
                              batch_stride, 
-                             beta, 
+                             beta_zero, 
                              static_cast<half*>(softmax_results_ptr), 
                              k_seq_len, 
                              k_seq_len*q_seq_len, 
@@ -174,12 +178,14 @@ std::vector<torch::Tensor> fwd_cuda(
                              (is_training) ? static_cast<const half*>(dropout_results.data_ptr()) : static_cast<const half*>(softmax_results.data_ptr()) , 
                              k_seq_len, 
                              k_seq_len*q_seq_len, 
-                             beta, 
+                             beta_zero, 
                              static_cast<half*>(matmul2_results.data_ptr()), 
                              head_dim*attn_batches, 
                              head_dim, 
                              attn_batches);
 
+  outputs.copy_(output_biases);
+  
   // Output Linear
   THCublasCheck(cublasGemmEx(handle,
                              CUBLAS_OP_T, 
@@ -194,7 +200,7 @@ std::vector<torch::Tensor> fwd_cuda(
                              static_cast<const void*>(matmul2_results.data_ptr()),
                              CUDA_R_16F, 
                              embed_dim, 
-                             static_cast<const void*>(&beta),
+                             static_cast<const void*>(&beta_one),
                              static_cast<void*>(outputs.data_ptr()),
                              CUDA_R_16F, 
                              embed_dim,
@@ -313,7 +319,8 @@ std::vector<torch::Tensor> bwd_cuda(
                              embed_dim,
                              CUDA_R_32F,
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
-  
+
+  auto  output_bias_grads = output_grads.view({-1, embed_dim}) .sum(0, false);
   // MatMul2 Dgrad1
   gemm_switch_fp32accum(     state, 
                              a_layout_t, 
@@ -461,12 +468,16 @@ std::vector<torch::Tensor> bwd_cuda(
                              embed_dim,
                              CUDA_R_32F,
                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+  
+  auto  input_bias_grads = input_lin_output_grads.view({-1, output_lin_dim}).sum(0, false);
   THCublasCheck(cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH));
 
   return { 
            input_grads, 
            input_weight_grads, 
-           output_weight_grads
+           output_weight_grads,
+           input_bias_grads, 
+           output_bias_grads
          };
 }
 

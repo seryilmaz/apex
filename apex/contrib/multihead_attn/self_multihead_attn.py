@@ -90,7 +90,7 @@ class SelfMultiheadAttn(nn.Module):
             else:
                 self.lyr_nrm.reset_parameters()
 
-    def forward(self, query, key, value, gemm2_probe, bmm2_probe, drop_probe, softmax_probe, bmm1_probe,  key_padding_mask=None, need_weights=False, attn_mask=None, is_training=True):
+    def forward(self, query, key, value, key_padding_mask=None, need_weights=False, attn_mask=None, is_training=True):
         """Input shape: Time x Batch x Channel
 
         Self-attention can be implemented by passing in the same arguments for
@@ -131,12 +131,12 @@ class SelfMultiheadAttn(nn.Module):
             if self.impl == 'fast':
                 #outputs , gemm1, bmm1, masked ,sf, drop, drop_mask ,bmm2 = self.attn_func(attn_mask is not None, is_training, self.num_heads, query,
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query,
-                                         qkv_weight, self.out_proj_weight, mask, self.dropout,gemm2_probe, bmm2_probe, drop_probe, softmax_probe, bmm1_probe )
+                                         qkv_weight, self.out_proj_weight, mask, self.dropout)
             else:
                 #outputs , gemm1, bmm1, masked ,sf, drop, drop_mask ,bmm2 = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query,
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query,
                                          qkv_weight, self.out_proj_weight,
                                          qkv_bias, self.out_proj_bias,
-                                         mask, self.dropout,gemm2_probe, bmm2_probe, drop_probe, softmax_probe, bmm1_probe)
+                                         mask, self.dropout)
 
         return outputs#, gemm1, bmm1, masked ,sf, drop, drop_mask ,bmm2

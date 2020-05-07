@@ -256,6 +256,19 @@ if "--fast_multihead_attn" in sys.argv:
                                                       '--expt-extended-lambda',
                                                       '--use_fast_math'] + version_dependent_macros + generator_flag}))
         ext_modules.append(
+            CUDAExtension(name='fast_self_multihead_attn_bias',
+                          sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_bias.cpp',
+                                   'apex/contrib/csrc/multihead_attn/self_multihead_attn_bias_cuda.cu'],
+                          extra_compile_args={'cxx': ['-O3',] + version_dependent_macros + generator_flag,
+                                              'nvcc':['-O3',
+                                                      '-gencode', 'arch=compute_70,code=sm_70',
+                                                      '-I./apex/contrib/csrc/multihead_attn/cutlass/',
+                                                      '-U__CUDA_NO_HALF_OPERATORS__',
+                                                      '-U__CUDA_NO_HALF_CONVERSIONS__',
+                                                      '--expt-relaxed-constexpr',
+                                                      '--expt-extended-lambda',
+                                                      '--use_fast_math'] + version_dependent_macros + generator_flag}))
+        ext_modules.append(
             CUDAExtension(name='fast_self_multihead_attn_norm_add',
                           sources=['apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add.cpp',
                                    'apex/contrib/csrc/multihead_attn/self_multihead_attn_norm_add_cuda.cu'],
