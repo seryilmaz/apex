@@ -193,10 +193,10 @@ class SelfAttnFunc(torch.autograd.Function):
         values_grads   = torch.bmm(dropout_results.transpose(1,2), output_lin_grads, out=values_grads.transpose(0,1))
 
         # Mask and Scaling for Dropout (not a publically documented op)
-        dropout_grads = matmul2_dgrad1#torch._masked_scale(matmul2_dgrad1, dropout_mask, 1.0/(1.0-dropout_prob_t[0]))
+        dropout_grads = torch._masked_scale(matmul2_dgrad1, dropout_mask, 1.0/(1.0-dropout_prob_t[0]))
         drop_probe = dropout_grads.clone().detach()
         # Softmax Grad (not a publically documented op)
-        softmax_grads = dropout_grads#torch._softmax_backward_data(dropout_grads, softmax_results, -1, softmax_results)
+        softmax_grads = torch._softmax_backward_data(dropout_grads, softmax_results, -1, softmax_results)
         softmax_probe = softmax_grads.clone().detach()
         # Matmul1 - DGRAD1
         # Input1: (data grads)  [seqs*heads, seql_q, seql_k] 

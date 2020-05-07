@@ -359,13 +359,13 @@ std::vector<torch::Tensor> bwd_cuda(
                              attn_batches);
 
   // Apply Dropout Mask and Scale by Dropout Probability 
-//  apex_masked_scale_cuda<half,float,uint32_t>(
-//                             static_cast<half const*>(matmul2_grads.data_ptr()),
-//                             static_cast<half*>(matmul2_grads.data_ptr()),
-//                             static_cast<uint8_t const*>(dropout_mask.data_ptr()),
-//                             dropout_elems,
-//                             (1.0 / (1.0 - dropout_prob)));
-//
+  apex_masked_scale_cuda<half,float,uint32_t>(
+                             static_cast<half const*>(matmul2_grads.data_ptr()),
+                             static_cast<half*>(matmul2_grads.data_ptr()),
+                             static_cast<uint8_t const*>(dropout_mask.data_ptr()),
+                             dropout_elems,
+                             (1.0 / (1.0 - dropout_prob)));
+
   auto drop_probe = matmul2_grads.clone().detach();
   // Softmax Grad
   bool softmax_success = false;
@@ -379,7 +379,7 @@ std::vector<torch::Tensor> bwd_cuda(
 //                             k_seq_len,
 //                             attn_batches*q_seq_len);
 
-  auto softmax_grads = matmul2_grads; //at::_softmax_backward_data(matmul2_grads, softmax_results,-1, softmax_results);
+  auto softmax_grads = at::_softmax_backward_data(matmul2_grads, softmax_results,-1, softmax_results);
 //  assert(softmax_success);
   auto softmax_probe = softmax_grads.clone().detach();
   // Matmul1 Dgrad1
