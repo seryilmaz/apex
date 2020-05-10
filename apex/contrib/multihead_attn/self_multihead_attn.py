@@ -39,16 +39,20 @@ class SelfMultiheadAttn(nn.Module):
         self.v_weight  = Parameter(torch.Tensor(embed_dim, embed_dim))
         self.out_proj_weight = Parameter(torch.Tensor(embed_dim, embed_dim))
         if self.bias:
-            assert impl != 'fast', "ERROR! The Fast implementation does not support biases!"
+            #assert impl != 'fast', "ERROR! The Fast implementation does not support biases!"
             #self.in_proj_bias = Parameter(torch.Tensor(3*embed_dim))
             self.q_bias  = Parameter(torch.Tensor(embed_dim))
             self.k_bias  = Parameter(torch.Tensor(embed_dim))
             self.v_bias  = Parameter(torch.Tensor(embed_dim))
             self.out_proj_bias = Parameter(torch.Tensor(embed_dim))
         else:
-            self.register_parameter('in_proj_bias', None)
+            #self.register_parameter('in_proj_bias', None)
+            self.register_parameter('q_bias', None)
+            self.register_parameter('k_bias', None)
+            self.register_parameter('v_bias', None)
             self.register_parameter('out_proj_bias', None)
-            self.in_proj_bias = None
+            #self.in_proj_bias = None
+            self.q_bias, self.k_bias, self.v_bias = None, None, None
             self.out_proj_bias = None
         if self.include_norm_add:
             if impl == 'fast':
@@ -131,7 +135,7 @@ class SelfMultiheadAttn(nn.Module):
             if self.impl == 'fast':
                 #outputs , gemm1, bmm1, masked ,sf, drop, drop_mask ,bmm2 = self.attn_func(attn_mask is not None, is_training, self.num_heads, query,
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, query,
-                                         qkv_weight, self.out_proj_weight, mask, self.dropout)
+                                         qkv_weight, self.out_proj_weight, qkv_bias, self.out_proj_bias, mask, self.dropout)
             else:
                 #outputs , gemm1, bmm1, masked ,sf, drop, drop_mask ,bmm2 = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query,
                 outputs = self.attn_func(attn_mask is not None, is_training, self.num_heads, self.scaling, query,
