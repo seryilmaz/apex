@@ -207,7 +207,7 @@ class SelfAttnFunc(torch.autograd.Function):
         # GEMM: ( (seql_q*seqs) x 3*embed_dim ) x ( 3*embed_dim x embed_dim ) = (seql_q*seqs x embed_dim)
         input_lin_results_grads = input_lin_results_grads.view(inputs.size(0)*inputs.size(1), heads_t[0]*3*head_dim)
         bmm1_probe = torch.empty_like(input_lin_results_grads)#input_lin_results_grads.clone().detach()
-        print("is_cont", input_lin_results_grads.is_contiguous(), inputs.is_contiguous(), input_weights.is_contiguous())
+        #print("is_cont", input_lin_results_grads.is_contiguous(), inputs.is_contiguous(), input_weights.is_contiguous())
         input_grads = torch.mm(input_lin_results_grads, input_weights)
         input_grads = input_grads.view(inputs.size(0), inputs.size(1), inputs.size(2))
         # Input Linear GEMM - WGRAD
