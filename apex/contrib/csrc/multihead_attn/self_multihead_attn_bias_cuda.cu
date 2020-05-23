@@ -373,7 +373,7 @@ std::vector<torch::Tensor> bwd_cuda(
 //                             dropout_elems,
 //                             (1.0 / (1.0 - dropout_prob)));
 //
-  matmul2_grads = at::_masked_scale(matmul2_grads, dropout_mask, 1.0/(1.0-dropout_prob));
+//  matmul2_grads = at::_masked_scale(matmul2_grads, dropout_mask, 1.0/(1.0-dropout_prob));
   // Softmax Grad
   bool softmax_success = false;
   //at::Tensor softmax_grads   = torch::empty_like(matmul2_grads);
@@ -385,8 +385,26 @@ std::vector<torch::Tensor> bwd_cuda(
 //                             k_seq_len,
 //                             k_seq_len,
 //                             attn_batches*q_seq_len);
-
-  auto softmax_grads = at::_softmax_backward_data(matmul2_grads, softmax_results,-1, softmax_results);
+ // auto tmp = matmul2_grads * softmax_results;
+//  auto softmax_grads = torch::empty_like(matmul2_grads);
+  dispatch_masked_scale_softmax_backward2<half, half, float,false>(
+                             static_cast<half*>(matmul2_grads.data_ptr()), 
+                             static_cast<half*>(matmul2_grads.data_ptr()), 
+                             reinterpret_cast<half const*>(softmax_results.data_ptr()),
+			     static_cast<uint8_t const*>(dropout_mask.data_ptr()),
+			     1.0/(1.0-dropout_prob),
+                             k_seq_len,
+                             k_seq_len,
+                             attn_batches*q_seq_len);
+//  dispatch_softmax_backward2<half, half, float,false>(
+//                             static_cast<half*>(softmax_grads.data_ptr()), 
+//                             static_cast<half*>(matmul2_grads.data_ptr()), 
+//                             reinterpret_cast<half const*>(softmax_results.data_ptr()),
+//                             k_seq_len,
+//                             k_seq_len,
+//                             attn_batches*q_seq_len);
+//
+//  auto softmax_grads = at::_softmax_backward_data(matmul2_grads, softmax_results,-1, softmax_results);
 //  assert(softmax_success);
   // Matmul1 Dgrad1
   gemm_switch_fp32accum(     state, 
@@ -399,7 +417,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              k_lin_results_ptr, 
                              lead_dim, 
                              batch_stride, 
-                             static_cast<half*>(softmax_grads.data_ptr()),
+                             static_cast<half*>(matmul2_grads.data_ptr()),
                              k_seq_len, 
                              k_seq_len*q_seq_len, 
                              beta, 
@@ -419,7 +437,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              q_lin_results_ptr, 
                              lead_dim, 
                              batch_stride, 
-                             static_cast<half*>(softmax_grads.data_ptr()),
+                             static_cast<half*>(matmul2_grads.data_ptr()),
                              k_seq_len, 
                              k_seq_len*q_seq_len, 
                              beta, 
