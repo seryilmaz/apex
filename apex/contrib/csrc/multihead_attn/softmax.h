@@ -697,7 +697,7 @@ bool dispatch_time_masked_softmax(output_t *dst, const input_t *src, const uint8
 //
 
 //        dispatch_softmax_backward<scalar_t, scalar_t, accscalar_t, is_log_softmax>(
-int log2_ceil(int value) {
+int log2_ceil_2(int value) {
     int log2_value = 0;
     while ((1 << log2_value) < value) ++log2_value;
     return log2_value;
@@ -824,7 +824,7 @@ void dispatch_masked_scale_softmax_backward2(output_t *grad_input, const input_t
     if (softmax_elements == 0) {
        return;
     } else {
-        int log2_elements = log2_ceil(softmax_elements);
+        int log2_elements = log2_ceil_2(softmax_elements);
         const int next_power_of_two = 1 << log2_elements;
 
         // This value must match the WARP_SIZE constexpr value computed inside softmax_warp_backward.
@@ -980,7 +980,7 @@ void dispatch_softmax_backward2(output_t *grad_input, const input_t *grad, const
     if (softmax_elements == 0) {
        return;
     } else {
-        int log2_elements = log2_ceil(softmax_elements);
+        int log2_elements = log2_ceil_2(softmax_elements);
         const int next_power_of_two = 1 << log2_elements;
 
         // This value must match the WARP_SIZE constexpr value computed inside softmax_warp_backward.
