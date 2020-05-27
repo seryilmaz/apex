@@ -61,7 +61,7 @@ class SelfAttnFunc(torch.autograd.Function):
                 seqs = int(batches / heads)
                 matmul1_results = matmul1_results.view(seqs, heads, seql_q, seql_k)
                 mask = mask.to(torch.bool)
-                matmul1_results = matmul1_results.masked_fill_(mask.unsqueeze(1).unsqueeze(2), float('-inf'))
+                matmul1_results = matmul1_results + mask.unsqueeze(1).unsqueeze(2).half() * -10000
                 matmul1_results = matmul1_results.view(seqs*heads, seql_q, seql_k)
 
         softmax_results = F.softmax(matmul1_results, dim=-1)
