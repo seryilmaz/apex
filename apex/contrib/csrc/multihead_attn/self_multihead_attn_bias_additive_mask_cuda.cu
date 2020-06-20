@@ -348,17 +348,38 @@ std::vector<torch::Tensor> bwd_cuda(
                              batch_stride, 
                              attn_batches);
 
+
+
   // Apply Dropout Mask and Scale by Dropout Probability 
+  apex_masked_scale_cuda<at::Half,float,uint32_t>(
+                             static_cast<at::Half const*>(matmul2_grads.data_ptr()),
+                             static_cast<at::Half*>(matmul2_grads.data_ptr()),
+                             static_cast<uint8_t const*>(dropout_mask.data_ptr()),
+                             dropout_elems,
+                             (1.0 / (1.0 - dropout_prob)));
+
   // Softmax Grad
-  dispatch_masked_scale_softmax_backward<half, half, float,false>(
+  bool softmax_success = false;
+  softmax_success = dispatch_softmax_backward<half, half, float>(
                              static_cast<half*>(matmul2_grads.data_ptr()), 
                              static_cast<half*>(matmul2_grads.data_ptr()), 
                              reinterpret_cast<half const*>(softmax_results.data_ptr()),
-			     static_cast<uint8_t const*>(dropout_mask.data_ptr()),
-			     1.0/(1.0-dropout_prob),
                              k_seq_len,
                              k_seq_len,
                              attn_batches*q_seq_len);
+  assert(softmax_success);
+
+  // Apply Dropout Mask and Scale by Dropout Probability 
+  // Softmax Grad
+//  dispatch_masked_scale_softmax_backward<half, half, float,false>(
+//                             static_cast<half*>(matmul2_grads.data_ptr()), 
+//                             static_cast<half*>(matmul2_grads.data_ptr()), 
+//                             reinterpret_cast<half const*>(softmax_results.data_ptr()),
+//			     static_cast<uint8_t const*>(dropout_mask.data_ptr()),
+//			     1.0/(1.0-dropout_prob),
+//                             k_seq_len,
+//                             k_seq_len,
+//                             attn_batches*q_seq_len);
 
   // Matmul1 Dgrad1
   gemm_switch_fp32accum(     state, 
