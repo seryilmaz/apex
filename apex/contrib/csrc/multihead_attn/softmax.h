@@ -316,7 +316,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(input_t *dst, uint8
                 int itr_jmp = it * WARP_SIZE;
                 int itr_idx = i * element_count + itr_jmp;
                 copy_vector<input_t, ELEMENTS_PER_LDG_STG>(&elements_input[i][it], src + itr_idx);
-                apply_additive_mask<input_t, ELEMENTS_PER_LDG_STG>(&elements_input[i][it], curr_mask + itr_jump); //(__half)-std::numeric_limits<float>::infinity()
+                apply_additive_mask<input_t, ELEMENTS_PER_LDG_STG>(&elements_input[i][it], curr_mask + itr_jmp); //(__half)-std::numeric_limits<float>::infinity()
 	    } 
  
         }
@@ -479,7 +479,7 @@ bool warp_additive_masked_softmax_dropout_kernel(int log2_elements, int &warp_si
 
 
 template<typename input_t, typename output_t, typename acc_t>
-bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int softmax_elements, int softmax_elements_stride, int batch_count, int pad_batch_stride, float p, bool is_training)// p is the probability to keep, not drop
+bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int totalElements, int softmax_elements, int softmax_elements_stride, int batch_count, int pad_batch_stride, float p, bool is_training)// p is the probability to keep, not drop
 {
 	
     if (softmax_elements == 0) {
@@ -498,7 +498,11 @@ bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_ma
  
         // use 128 threads per block to maximimize gpu utilization
         constexpr int threads_per_block = 128;
+        int batches_per_block = warps_per_block * batches_per_warp;
+        int blocks = (batch_count + batches_per_block - 1) / batches_per_block;
 
+        auto gen = at::cuda::detail::getDefaultCUDAGenerator();
+        int64_t counter_offset = (totalElements/(blocks*threads_per_block)+1);
         std::pair<uint64_t, uint64_t> rng_engine_inputs;
         {
           // See Note [Acquire lock when using random generators]
@@ -514,8 +518,6 @@ bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_ma
         int warps_per_block = (threads_per_block / warp_size);
  
         // compute launch size
-        int batches_per_block = warps_per_block * batches_per_warp;
-        int blocks = (batch_count + batches_per_block - 1) / batches_per_block;
         dim3 threads(warp_size, warps_per_block, 1);
          
         // launch
