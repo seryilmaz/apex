@@ -64,7 +64,7 @@ std::vector<torch::Tensor> fwd_cuda(
 
   torch::Tensor input_lin_results = torch::empty({q_seq_len, sequences, output_lin_dim}, act_options);
   torch::Tensor softmax_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
- // torch::Tensor dropout_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
+  torch::Tensor dropout_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
   torch::Tensor dropout_mask      = torch::empty({attn_batches, q_seq_len, k_seq_len},   mask_options);
   torch::Tensor matmul2_results   = torch::empty({q_seq_len, attn_batches, head_dim},    act_options);
   torch::Tensor outputs           = torch::empty_like(inputs, act_options);
@@ -76,6 +76,7 @@ std::vector<torch::Tensor> fwd_cuda(
 
   // Softmax Intermediate Result Ptr (used by Matmul1 -> Softmax)
   void* softmax_results_ptr = static_cast<void*>(softmax_results.data_ptr());
+  void* dropout_results_ptr = static_cast<void*>(dropout_results.data_ptr());
 
   char a_layout_t{'t'};
   char a_layout_n{'n'};
@@ -135,6 +136,7 @@ std::vector<torch::Tensor> fwd_cuda(
   } else {
       softmax_success = dispatch_additive_masked_softmax_dropout<half, half, float>(
                              reinterpret_cast<half*>(softmax_results_ptr),
+                             reinterpret_cast<half*>(dropout_results_ptr),
                              (is_training) ? reinterpret_cast<uint8_t*>(dropout_mask.data_ptr<uint8_t*>()) : nullptr,
                              reinterpret_cast<const half*>(softmax_results_ptr),
                              pad_mask,
