@@ -498,6 +498,8 @@ bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_ma
  
         // use 128 threads per block to maximimize gpu utilization
         constexpr int threads_per_block = 128;
+        // compute warps per block.
+        int warps_per_block = (threads_per_block / warp_size);
         int batches_per_block = warps_per_block * batches_per_warp;
         int blocks = (batch_count + batches_per_block - 1) / batches_per_block;
 
@@ -514,8 +516,6 @@ bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_ma
           rng_engine_inputs = at::check_generator<at::CUDAGeneratorImpl>(gen)->philox_engine_inputs(counter_offset);
       #endif
         }
-        // compute warps per block.
-        int warps_per_block = (threads_per_block / warp_size);
  
         // compute launch size
         dim3 threads(warp_size, warps_per_block, 1);
