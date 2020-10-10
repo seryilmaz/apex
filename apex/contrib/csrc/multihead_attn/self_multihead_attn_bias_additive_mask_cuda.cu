@@ -135,8 +135,8 @@ std::vector<torch::Tensor> fwd_cuda(
                              attn_batches*q_seq_len);
   } else {
       softmax_success = dispatch_additive_masked_softmax_dropout<half, half, float>(
-                             reinterpret_cast<half*>(softmax_results_ptr),
                              reinterpret_cast<half*>(dropout_results_ptr),
+                             reinterpret_cast<half*>(softmax_results_ptr),
                              (is_training) ? reinterpret_cast<uint8_t*>(dropout_mask.data_ptr<uint8_t*>()) : nullptr,
                              reinterpret_cast<const half*>(softmax_results_ptr),
                              pad_mask,
@@ -168,7 +168,7 @@ std::vector<torch::Tensor> fwd_cuda(
                              static_cast<const half*>(v_lin_results_ptr), 
                              lead_dim, 
                              batch_stride, 
-                             (is_training) ? static_cast<const half*>(softmax_results.data_ptr()) : static_cast<const half*>(softmax_results.data_ptr()) , 
+                             (is_training) ? static_cast<const half*>(dropout_results.data_ptr()) : static_cast<const half*>(dropout_results.data_ptr()) , 
                              k_seq_len, 
                              k_seq_len*q_seq_len, 
                              beta_zero, 

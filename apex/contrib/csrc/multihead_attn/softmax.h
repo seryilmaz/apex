@@ -425,11 +425,11 @@ __global__ void additive_masked_softmax_dropout_warp_forward(input_t *dst, outpu
 // WARP_ITERATOINS The number of iterations required for one warp to iterate over all data.
 // WARP_SIZE number of elements working on a single batch, has to be a power of two.
 // ELEMENTS_PER_LDG_STG has to be 1.
-template <typename input_t, typename output_t>
-using additive_masked_softmax_dropout_forward_func = void(*)(input_t *dst, output_t softmax_results, uint8_t *dropout_mask, const output_t *src, const half *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training);
+template <typename input_t, typename output_t, typename acc_t>
+using additive_masked_softmax_dropout_forward_func = void(*)(input_t *dst, output_t softmax_results, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training);
  
 template <typename input_t, typename output_t, typename acc_t>
-bool warp_additive_masked_softmax_dropout_kernel(int log2_elements, int &warp_size, int &batches_per_warp, additive_masked_softmax_dropout_forward_func<input_t, output_t> &kernel) {
+bool warp_additive_masked_softmax_dropout_kernel(int log2_elements, int &warp_size, int &batches_per_warp, additive_masked_softmax_dropout_forward_func<input_t, output_t, acc_t> &kernel) {
     // determine size of a warp
     const int next_power_of_two = 1 << log2_elements;
     warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
@@ -494,7 +494,7 @@ bool dispatch_additive_masked_softmax_dropout(output_t *dst, output_t *softmax_r
         int log2_elements = 0;
         while ((1 << log2_elements) < softmax_elements) ++log2_elements;
  
-        additive_masked_softmax_dropout_forward_func<input_t, output_t> kernel;
+        additive_masked_softmax_dropout_forward_func<input_t, output_t, acc_t> kernel;
         int warp_size, batches_per_warp;
         if (!warp_additive_masked_softmax_dropout_kernel<input_t, output_t, acc_t>(log2_elements, warp_size, batches_per_warp, kernel)) {
             return false;
