@@ -426,7 +426,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
 // WARP_SIZE number of elements working on a single batch, has to be a power of two.
 // ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t, typename acc_t>
-using additive_masked_softmax_dropout_forward_func = void(*)(output_t *dst, output_t softmax_results, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training);
+using additive_masked_softmax_dropout_forward_func = void(*)(output_t *dst, output_t* softmax_results, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training);
 
 
 
