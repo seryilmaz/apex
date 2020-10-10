@@ -46,13 +46,13 @@ namespace {
       if (*src == 1) { *dst = value; }
     }
     template <typename Datatype, int ELEMENTS_PER_LDG>
-    __device__ __inline__ void apply_additive_mask(Datatype *dst, Datatype *additive_mask);
+    __device__ __inline__ void apply_additive_mask(Datatype *dst, const Datatype *additive_mask);
     template <>
-    __device__ __inline__ void apply_additive_mask<__half, 1>(__half *dst, __half *additive_mask) {
+    __device__ __inline__ void apply_additive_mask<__half, 1>(__half *dst, const __half *additive_mask) {
       *dst += *additive_mask; 
     }
     template <>
-    __device__ __inline__ void apply_additive_mask<__half, 4>(__half *dst, __half *additive_mask) {
+    __device__ __inline__ void apply_additive_mask<__half, 4>(__half *dst, const __half *additive_mask) {
     *((__half2*) dst) = __hadd2(*((__half2*) dst), *((__half2*) additive_mask)); 
     *((__half2*) dst+2) = __hadd2(*((__half2*) dst+2), *((__half2*) additive_mask+2)); }
     
@@ -406,8 +406,8 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
                 for (int element = 0;element < ELEMENTS_PER_LDG_STG;++element) {
 		    softmax_out[element] = (elements[i][it + element] / sum[i]);	
                     rand_ptr[element] = rand_ptr[element] <= p;       
-                    if (rand_ptr[element] == 0) out[element] = 0.0f;
-                    else out[element] = pinv * (softmax_out[element]);
+                    if (rand_ptr[element] == 0) out[element] = 0.0;
+                    else out[element] = (half)pinv * (softmax_out[element]);
 		    if (is_training) dropout_mask_temp[element] = rand_ptr[element] > 0.5; // just to distinguish 0.0f and 1.0f 
                 }
                 copy_vector<output_t, ELEMENTS_PER_LDG_STG>(dst + i * element_count + it * WARP_SIZE, out);
