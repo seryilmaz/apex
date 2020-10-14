@@ -1,5 +1,5 @@
 #pragma once
-#include <ATen/ATen.h>
+//#include <ATen/ATen.h>
 
 #ifdef OLD_GENERATOR
 #include <ATen/CUDAGenerator.h>
@@ -7,10 +7,10 @@
 #include <ATen/CUDAGeneratorImpl.h>
 #endif
 
-#include <ATen/cuda/CUDAContext.h>
+//#include <ATen/cuda/CUDAContext.h>
 #include <curand_kernel.h>
 
-#include <THC/THCGeneral.h>
+//#include <THC/THCGeneral.h>
  
 #include <assert.h>
 #include <cfloat>
