@@ -305,6 +305,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
     src += thread_offset;
     dst += thread_offset;
     softmax_results += thread_offset;
+    dropout_mask += thread_offset;
  
     // load data from global memory
     input_t elements_input[WARP_BATCH][WARP_ITERATIONS];
