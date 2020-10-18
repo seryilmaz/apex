@@ -30,13 +30,14 @@ namespace {
     __device__ __inline__ void copy_vector<float, 1>(float *dst, const float *src) { *dst = *src; }
  
     template <>
-    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((__half2*)dst) = *((__half2*)src); *((__half2*)(dst+2)) = *((__half2*)(src+2));   }
+    //__device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((__half2*)dst) = *((__half2*)src); *((__half2*)(dst+2)) = *((__half2*)(src+2));   }
+    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3);}
     
     template <>
     __device__ __inline__ void copy_vector<uint8_t, 1>(uint8_t *dst, const uint8_t *src) { *dst = *src; }
     
     template <>
-    __device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) { *((float*) dst) = *((float*) src); }
+    __device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) { *(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3);}// { *((float*) dst) = *((float*) src); }
    
     template <typename Datatype, int ELEMENTS_PER_LDG>
     __device__ __inline__ void apply_mask(Datatype *dst, Datatype value, const uint8_t *src);
@@ -53,9 +54,13 @@ namespace {
     }
     template <>
     __device__ __inline__ void apply_additive_mask<__half, 4>(__half *dst, const __half *additive_mask) {
-    *((__half2*) dst) = __hadd2(*((__half2*) dst), *((__half2*) additive_mask)); 
-    *((__half2*) (dst+2)) = __hadd2(*((__half2*)(dst+2)), *((__half2*) (additive_mask+2))); }
-    
+    //*((__half2*) dst) = __hadd2(*((__half2*) dst), *((__half2*) additive_mask)); 
+   // *((__half2*) (dst+2)) = __hadd2(*((__half2*)(dst+2)), *((__half2*) (additive_mask+2))); }
+      *dst += *additive_mask;
+      *(dst+1) += *(additive_mask+1);
+      *(dst+2) += *(additive_mask+2);
+      *(dst+3) += *(additive_mask+3);}
+
 } // namespace anonymous
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -277,6 +282,8 @@ bool dispatch_softmax(output_t *dst, const input_t *src, int softmax_elements, i
     }
     return false;
 }
+
+
 
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE=32, int ELEMENTS_PER_LDG_STG>
 __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, output_t *softmax_results, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training)
@@ -529,7 +536,7 @@ bool dispatch_additive_masked_softmax_dropout(output_t *dst, output_t *softmax_r
         dim3 threads(warp_size, warps_per_block, 1);
          
         // launch
-        kernel<<<blocks, threads, 0>>>(dst, softmax_results, dropout_mask, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride, rng_engine_inputs, dropout_prob_kernel, is_training);
+        kernel<<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>(dst, softmax_results, dropout_mask, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride, rng_engine_inputs, dropout_prob_kernel, is_training);
         return true;
     }
     return false;
