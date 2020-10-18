@@ -63,6 +63,7 @@ std::vector<torch::Tensor> fwd_cuda(
   auto mask_options = act_options.dtype(torch::kUInt8);
 
   torch::Tensor input_lin_results = torch::empty({q_seq_len, sequences, output_lin_dim}, act_options);
+  torch::Tensor bmm1_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
   torch::Tensor softmax_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
   torch::Tensor dropout_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
   torch::Tensor dropout_mask      = torch::empty({attn_batches, q_seq_len, k_seq_len},   mask_options);
@@ -75,6 +76,7 @@ std::vector<torch::Tensor> fwd_cuda(
   void* v_lin_results_ptr   = static_cast<void*>(static_cast<half*>(input_lin_results.data_ptr()) + 2*head_dim);
 
   // Softmax Intermediate Result Ptr (used by Matmul1 -> Softmax)
+  void* bmm1_results_ptr = static_cast<void*>(bmm1_results.data_ptr());
   void* softmax_results_ptr = static_cast<void*>(softmax_results.data_ptr());
   void* dropout_results_ptr = static_cast<void*>(dropout_results.data_ptr());
 
@@ -120,7 +122,7 @@ std::vector<torch::Tensor> fwd_cuda(
                              lead_dim, 
                              batch_stride, 
                              beta_zero, 
-                             static_cast<half*>(softmax_results_ptr), 
+                             static_cast<half*>(bmm1_results_ptr), 
                              k_seq_len, 
                              k_seq_len*q_seq_len, 
                              attn_batches);
@@ -129,7 +131,7 @@ std::vector<torch::Tensor> fwd_cuda(
   if (pad_mask == nullptr) {
     softmax_success = dispatch_softmax<half, half, float>(
                              reinterpret_cast<half*>(softmax_results_ptr),
-                             reinterpret_cast<const half*>(softmax_results_ptr),
+                             reinterpret_cast<const half*>(bmm1_results_ptr),
                              k_seq_len,
                              k_seq_len,
                              attn_batches*q_seq_len);
@@ -138,7 +140,7 @@ std::vector<torch::Tensor> fwd_cuda(
                              reinterpret_cast<half*>(dropout_results_ptr),
                              reinterpret_cast<half*>(softmax_results_ptr),
                              (is_training) ? reinterpret_cast<uint8_t*>(dropout_mask.data_ptr<uint8_t>()) : nullptr,
-                             reinterpret_cast<const half*>(softmax_results_ptr),
+                             reinterpret_cast<const half*>(bmm1_results_ptr),
                              pad_mask,
 			     attn_batches*q_seq_len*q_seq_len,
                              k_seq_len,
@@ -206,6 +208,8 @@ std::vector<torch::Tensor> fwd_cuda(
   return {
            input_lin_results,  
            softmax_results,
+           bmm1_results,
+	   pad_mask,
            dropout_results, 
            dropout_mask, 
            matmul2_results, 
@@ -219,6 +223,8 @@ std::vector<torch::Tensor> bwd_cuda(
                                torch::Tensor const& matmul2_results,
                                torch::Tensor const& dropout_results,
                                torch::Tensor const& softmax_results,
+                               torch::Tensor const& bmm1_results,
+                               torch::Tensor const& pad_mask,
                                torch::Tensor const& input_lin_results,
                                torch::Tensor const& inputs, 
                                torch::Tensor const& input_weights,
@@ -359,11 +365,14 @@ std::vector<torch::Tensor> bwd_cuda(
   dispatch_masked_scale_softmax_backward<half, half, float,false>(
                              static_cast<half*>(matmul2_grads.data_ptr()), 
                              static_cast<half*>(matmul2_grads.data_ptr()), 
+                             reinterpret_cast<half const*>(bmm1_results.data_ptr()),
+                             reinterpret_cast<half const*>(pad_mask.data_ptr()),
                              reinterpret_cast<half const*>(softmax_results.data_ptr()),
 			     static_cast<uint8_t const*>(dropout_mask.data_ptr()),
 			     1.0/(1.0-dropout_prob),
                              k_seq_len,
                              k_seq_len,
+			     attn_batches*q_seq_len/sequences,
                              attn_batches*q_seq_len);
 
   // Matmul1 Dgrad1

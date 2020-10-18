@@ -35,6 +35,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
             else:
                 input_lin_results,                                              \
                 softmax_results,                                                \
+                bmm1_results,                                                \
+                pad_mask,                                                \
                 dropout_results,                                                \
                 dropout_mask,                                                   \
                 matmul2_results,                                                \
@@ -76,6 +78,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                               matmul2_results,                          \
                               dropout_results,                          \
                               softmax_results,                          \
+                              bmm1_results,                          \
+                              pad_mask,                          \
                               input_lin_results,                        \
                               inputs,                                   \
                               input_weights,                            \
@@ -93,6 +97,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
         matmul2_results,                                                \
         dropout_results,                                                \
         softmax_results,                                                \
+        bmm1_results,                                                \
+        pad_mask,                                                \
         input_lin_results,                                              \
         inputs,                                                         \
         input_weights,                                                  \
@@ -106,12 +112,14 @@ class FastSelfAttnFunc(torch.autograd.Function) :
             output_weight_grads,                                           \
             input_bias_grads,                                                   \
             output_bias_grads =                                                    \
-                fast_self_multihead_attn_bias.backward(                          \
+                fast_self_multihead_attn_bias_additive_mask.backward(                          \
                                   heads_t[0],                               \
                                   output_grads,                             \
                                   matmul2_results,                          \
                                   dropout_results,                          \
                                   softmax_results,                          \
+                                  bmm1_results,                          \
+                                  pad_mask,                          \
                                   input_lin_results,                        \
                                   inputs,                                   \
                                   input_weights,                            \
