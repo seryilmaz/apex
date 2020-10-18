@@ -298,6 +298,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
     src += thread_offset;
     dst += thread_offset;
     softmax_results += thread_offset;
+    dropout_mask += thread_offset;
  
     // load data from global memory
     input_t elements_input[WARP_BATCH][WARP_ITERATIONS];
@@ -1567,6 +1568,7 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
     // load data from global memory
  
     // convert input_t to acc_t
+    // TODO : remove this, input is already acc_t type in register
     acc_t elements = softmax_input_reg;
     for (int i = 0;i < WARP_BATCH;++i) {
         for (int it = 0;it < WARP_ITERATIONS;++it) {
@@ -1637,7 +1639,7 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
 	   elements[i][it] = elements[i][it] / sum[i] 
            grad_reg[i][it] = grad_reg[i][it] * elements[i][it];
 
-    acc_t softmax_output_reg = elements;
+    acc_t output_reg = elements;
 
     acc_t grad_sum[WARP_BATCH];
     #pragma unroll
