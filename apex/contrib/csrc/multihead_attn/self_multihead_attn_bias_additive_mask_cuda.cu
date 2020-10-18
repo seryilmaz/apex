@@ -175,14 +175,33 @@ std::vector<torch::Tensor> fwd_cuda(
       }
       std::cout<<" dropout mask: ";
       for (int i=0; i<10;i++){
-          std::cout<< *(dropout_mask1_cpu.data_ptr<uint8_t>() + i)<<" ";
+          std::cout<< int(*(dropout_mask1_cpu.data_ptr<uint8_t>() + i))<<" ";
       }
-  //    std::cout<<"\n"<<std::endl;
+      std::cout<<"\n"<<std::endl;
+      std::cout<<"new kernel softmax/dropout/mask last 10"<<std::endl;
+      for (int i=0; i<10;i++){
+          std::cout<< *(softmax_results1_cpu.data_ptr<float>() +attn_batches* q_seq_len* k_seq_len-1- i)<<" ";
+      }
+      std::cout<<" dropout: ";
+      for (int i=0; i<10;i++){
+          std::cout<< *(dropout_results1_cpu.data_ptr<float>() +attn_batches* q_seq_len* k_seq_len-1- i)<<" ";
+      }
+      std::cout<<" dropout mask: ";
+      for (int i=0; i<10;i++){
+          std::cout<< int(*(dropout_mask1_cpu.data_ptr<uint8_t>() +attn_batches* q_seq_len* k_seq_len-1- i))<<" ";
+      }
+      std::cout<<"\n"<<std::endl;
+  //    std::cout<<"\n"<<std::endl; attn_batches, q_seq_len, k_seq_len
 
       auto softmax_results2_cpu = softmax_results2.to(torch::kCPU).to(torch::kFloat32); ;
-      std::cout<<" old kernel softmax: "<<std::endl;
+      std::cout<<" old kernel softmax top 10: "<<std::endl;
       for (int i=0; i<10;i++){
           std::cout<< *(softmax_results2_cpu.data_ptr<float>() + i)<<" ";
+      }
+      std::cout<<"\n"<<std::endl;
+      std::cout<<" old kernel softmax last 10: "<<std::endl;
+      for (int i=0; i<10;i++){
+          std::cout<< *(softmax_results2_cpu.data_ptr<float>() + attn_batches* q_seq_len* k_seq_len-1- i )<<" ";
       }
       std::cout<<"\n"<<std::endl;
 
