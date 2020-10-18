@@ -134,6 +134,58 @@ std::vector<torch::Tensor> fwd_cuda(
                              k_seq_len,
                              attn_batches*q_seq_len);
   } else {
+      
+      torch::Tensor softmax_results1   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
+      torch::Tensor dropout_results1   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
+      torch::Tensor dropout_mask1      = torch::empty({attn_batches, q_seq_len, k_seq_len},   mask_options);
+      
+      softmax_success = dispatch_additive_masked_softmax_dropout<half, half, float>(
+                             reinterpret_cast<half*>(dropout_results1.data_ptr()),
+                             reinterpret_cast<half*>(softmax_results1.data_ptr()),
+                             (is_training) ? reinterpret_cast<uint8_t*>(dropout_mask1.data_ptr<uint8_t>()) : nullptr,
+                             reinterpret_cast<const half*>(softmax_results_ptr),
+                             pad_mask,
+			     attn_batches*q_seq_len*q_seq_len,
+                             k_seq_len,
+                             k_seq_len,
+                             attn_batches*q_seq_len,
+                             attn_batches*q_seq_len/sequences, 
+			     1.0f-dropout_prob,
+			     is_training);
+      torch::Tensor softmax_results2   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
+      softmax_success = dispatch_additive_masked_softmax<half, half, float>(
+                             reinterpret_cast<half*>(softmax_results2.data_ptr()),
+                             reinterpret_cast<const half*>(softmax_results_ptr),
+                             pad_mask,
+                             k_seq_len,
+                             k_seq_len,
+                             attn_batches*q_seq_len,
+                             attn_batches*q_seq_len/sequences);
+
+      auto softmax_results1_cpu = softmax_results1.cpu().float();
+      auto dropout_results1_cpu = dropout_results1.cpu().float();
+      auto dropout_mask1_cpu = dropout_mask1.cpu();
+      std::cout<<"new kernel softmax/dropout/mask first 10"<<std::endl;
+      for (int i=0; i<10;i++){
+          std::cout<< *(softmax_results1_cpu.data_ptr<float>() + i)<<" ";
+      }
+      std::cout<<" dropout: ";
+      for (int i=0; i<10;i++){
+          std::cout<< *(dropout_results1_cpu.data_ptr<float>() + i)<<" ";
+      }
+      std::cout<<" dropout mask: ";
+      for (int i=0; i<10;i++){
+          std::cout<< *(dropout_mask1_cpu.data_ptr<uint8_t>() + i)<<" ";
+      }
+  //    std::cout<<"\n"<<std::endl;
+
+      auto softmax_results2_cpu = softmax_results2.cpu().float();
+      std::cout<<" old kernel softmax: "<<std::endl;
+      for (int i=0; i<10;i++){
+          std::cout<< *(softmax_results2_cpu.data_ptr<float>() + i)<<" ";
+      }
+      std::cout<<"\n"<<std::endl;
+
       softmax_success = dispatch_additive_masked_softmax_dropout<half, half, float>(
                              reinterpret_cast<half*>(dropout_results_ptr),
                              reinterpret_cast<half*>(softmax_results_ptr),
@@ -147,6 +199,8 @@ std::vector<torch::Tensor> fwd_cuda(
                              attn_batches*q_seq_len/sequences, 
 			     1.0f-dropout_prob,
 			     is_training);
+
+
   }
 
 
