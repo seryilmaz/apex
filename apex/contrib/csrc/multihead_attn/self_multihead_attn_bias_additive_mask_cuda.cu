@@ -64,7 +64,6 @@ std::vector<torch::Tensor> fwd_cuda(
 
   torch::Tensor input_lin_results = torch::empty({q_seq_len, sequences, output_lin_dim}, act_options);
   torch::Tensor bmm1_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
-  torch::Tensor softmax_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
   torch::Tensor dropout_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
   torch::Tensor dropout_mask      = torch::empty({attn_batches, q_seq_len, k_seq_len},   mask_options);
   torch::Tensor matmul2_results   = torch::empty({q_seq_len, attn_batches, head_dim},    act_options);
@@ -77,7 +76,6 @@ std::vector<torch::Tensor> fwd_cuda(
 
   // Softmax Intermediate Result Ptr (used by Matmul1 -> Softmax)
   void* bmm1_results_ptr = static_cast<void*>(bmm1_results.data_ptr());
-  void* softmax_results_ptr = static_cast<void*>(softmax_results.data_ptr());
   void* dropout_results_ptr = static_cast<void*>(dropout_results.data_ptr());
 
   char a_layout_t{'t'};
@@ -129,6 +127,9 @@ std::vector<torch::Tensor> fwd_cuda(
   // Padded Softmax
   bool softmax_success = false;
   if (pad_mask == nullptr) {
+    // find another way TODO	  
+    torch::Tensor softmax_results   = torch::empty({attn_batches, q_seq_len, k_seq_len},   act_options);
+    void* softmax_results_ptr = static_cast<void*>(softmax_results.data_ptr());
     softmax_success = dispatch_softmax<half, half, float>(
                              reinterpret_cast<half*>(softmax_results_ptr),
                              reinterpret_cast<const half*>(bmm1_results_ptr),
@@ -138,7 +139,7 @@ std::vector<torch::Tensor> fwd_cuda(
   } else {
       softmax_success = dispatch_additive_masked_softmax_dropout<half, half, float>(
                              reinterpret_cast<half*>(dropout_results_ptr),
-                             reinterpret_cast<half*>(softmax_results_ptr),
+                             reinterpret_cast<half*>(dropout_results_ptr),//TODO: will remove this after debugging//reinterpret_cast<half*>(softmax_results_ptr),
                              (is_training) ? reinterpret_cast<uint8_t*>(dropout_mask.data_ptr<uint8_t>()) : nullptr,
                              reinterpret_cast<const half*>(bmm1_results_ptr),
                              pad_mask,
@@ -207,7 +208,7 @@ std::vector<torch::Tensor> fwd_cuda(
 
   return {
            input_lin_results,  
-           softmax_results,
+//           softmax_results,
            bmm1_results,
 //	   pad_mask,
            dropout_results, 
@@ -222,7 +223,7 @@ std::vector<torch::Tensor> bwd_cuda(
                                torch::Tensor const& output_grads, 
                                torch::Tensor const& matmul2_results,
                                torch::Tensor const& dropout_results,
-                               torch::Tensor const& softmax_results,
+                             //  torch::Tensor const& softmax_results,
                                torch::Tensor const& bmm1_results,
                                torch::Tensor const& pad_mask,
                                torch::Tensor const& input_lin_results,
@@ -367,7 +368,7 @@ std::vector<torch::Tensor> bwd_cuda(
                              static_cast<half*>(matmul2_grads.data_ptr()), 
                              reinterpret_cast<half const*>(bmm1_results.data_ptr()),
                              reinterpret_cast<half const*>(pad_mask.data_ptr()),
-                             reinterpret_cast<half const*>(softmax_results.data_ptr()),
+                             reinterpret_cast<half const*>(bmm1_results.data_ptr()),//remove this after debugging TODO
 			     static_cast<uint8_t const*>(dropout_mask.data_ptr()),
 			     1.0/(1.0-dropout_prob),
                              k_seq_len,

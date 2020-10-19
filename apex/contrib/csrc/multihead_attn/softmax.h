@@ -405,14 +405,14 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
                 float4 rand = curand_uniform4(&state);
                 float *rand_ptr = (float*)(&rand);    
                 for (int element = 0;element < ELEMENTS_PER_LDG_STG;++element) {
-		    softmax_out[element] = (elements[i][it + element] / sum[i]);	
+		 //   softmax_out[element] = (elements[i][it + element] / sum[i]);	
                     rand_ptr[element] = rand_ptr[element] <= p;       
                     if (rand_ptr[element] == 0) out[element] = 0.0;
                     else out[element] = (half)pinv * (softmax_out[element]);
 		    if (is_training) dropout_mask_temp[element] = rand_ptr[element] > 0.5; // just to distinguish 0.0f and 1.0f 
                 }
                 copy_vector<output_t, ELEMENTS_PER_LDG_STG>(dst + i * element_count + it * WARP_SIZE, out);
-                copy_vector<output_t, ELEMENTS_PER_LDG_STG>(softmax_results + i * element_count + it * WARP_SIZE, softmax_out);
+              //  copy_vector<output_t, ELEMENTS_PER_LDG_STG>(softmax_results + i * element_count + it * WARP_SIZE, softmax_out);
                 if (is_training) copy_vector<uint8_t, ELEMENTS_PER_LDG_STG>(dropout_mask + i * element_count + it * WARP_SIZE, dropout_mask_temp);
 
             }
