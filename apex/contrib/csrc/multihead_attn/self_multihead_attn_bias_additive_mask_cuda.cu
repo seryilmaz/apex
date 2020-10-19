@@ -209,7 +209,7 @@ std::vector<torch::Tensor> fwd_cuda(
            input_lin_results,  
            softmax_results,
            bmm1_results,
-	   pad_mask,
+//	   pad_mask,
            dropout_results, 
            dropout_mask, 
            matmul2_results, 
