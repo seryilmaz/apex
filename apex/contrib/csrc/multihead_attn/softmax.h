@@ -1754,7 +1754,6 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
     }
 }
 
- acc_t scale, int batch_size, int stride, int pad_batch_stride, int element_count
 
 
 template<typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
