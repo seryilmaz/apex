@@ -101,7 +101,7 @@ std::vector<torch::Tensor> bwd(
   AT_ASSERTM(output_grads.dim()      == 3, "expected 3D tensor");
   AT_ASSERTM(matmul2_results.dim()   == 3, "expected 3D tensor");
   AT_ASSERTM(dropout_results.dim()   == 3, "expected 3D tensor");
-  AT_ASSERTM(softmax_results.dim()   == 3, "expected 3D tensor");
+//  AT_ASSERTM(softmax_results.dim()   == 3, "expected 3D tensor");
   AT_ASSERTM(input_lin_results.dim() == 3, "expected 3D tensor");
   AT_ASSERTM(inputs.dim()            == 3, "expected 3D tensor");
   AT_ASSERTM(input_weights.dim()     == 2, "expected 2D tensor");
@@ -111,7 +111,7 @@ std::vector<torch::Tensor> bwd(
   AT_ASSERTM(output_grads.type().scalarType()      == at::ScalarType::Half, "Only HALF is supported");
   AT_ASSERTM(matmul2_results.type().scalarType()   == at::ScalarType::Half, "Only HALF is supported");
   AT_ASSERTM(dropout_results.type().scalarType()   == at::ScalarType::Half, "Only HALF is supported");
-  AT_ASSERTM(softmax_results.type().scalarType()   == at::ScalarType::Half, "Only HALF is supported");
+//  AT_ASSERTM(softmax_results.type().scalarType()   == at::ScalarType::Half, "Only HALF is supported");
   AT_ASSERTM(input_lin_results.type().scalarType() == at::ScalarType::Half, "Only HALF is supported");
   AT_ASSERTM(inputs.type().scalarType()            == at::ScalarType::Half, "Only HALF is supported");
   AT_ASSERTM(input_weights.type().scalarType()     == at::ScalarType::Half, "Only HALF is supported");
@@ -123,7 +123,7 @@ std::vector<torch::Tensor> bwd(
                                  output_grads,
                                  matmul2_results,
                                  dropout_results,
-                                 softmax_results,
+                                 //softmax_results,
 				 bmm1_results,
 				 pad_mask, 
                                  input_lin_results, 
