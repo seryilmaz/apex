@@ -1717,7 +1717,7 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
             break;
         #pragma unroll
         for (int it = 0;it < WARP_ITERATIONS;it ++) {
-	   elements[i][it] = elements[i][it] / sum[i] 
+	   elements[i][it] = elements[i][it] / sum[i]; 
            grad_reg[i][it] = grad_reg[i][it] * elements[i][it];
 	}
     }
