@@ -1623,7 +1623,7 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
 
     // load data from global memory
     acc_t grad_reg[WARP_BATCH][WARP_ITERATIONS]  ;
-    acc_t softmax_input_reg[WARP_BATCH][WARP_ITERATIONS] ;
+    acc_t elements[WARP_BATCH][WARP_ITERATIONS] ;
     for (int i = 0;  i < WARP_BATCH;  ++i) {
         int batch_element_count = (i >= local_batches) ? 0 : element_count;
         int pad_thread_offset = ( (first_batch + i) / pad_batch_stride) * stride + local_idx;
@@ -1634,12 +1634,12 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
                 int itr_jmp = it * WARP_SIZE;
                 int itr_idx = i * element_count + itr_jmp;
                 grad_reg[i][it] = ((acc_t)mask[itr_idx] * (acc_t)grad[itr_idx] * (acc_t)scale );
-                softmax_input_reg[i][it] = softmax_input[itr_idx];
-		softmax_input_reg[i][it] += acc_t(*(curr_mask + itr_jmp));
+                elements[i][it] = softmax_input[itr_idx];
+		elements[i][it] += acc_t(*(curr_mask + itr_jmp));
             } else {
                 grad_reg[i][it] = acc_t(0);
 		// just uing a very small number so the softmax output becomes 0
-                softmax_input_reg[i][it] = acc_t(-10000);
+                elements[i][it] = acc_t(-10000);
             }
         }
     }
@@ -1650,12 +1650,12 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
  
     // convert input_t to acc_t
     // TODO : remove this, input is already acc_t type in register
-    acc_t *elements = softmax_input_reg;
-    for (int i = 0;i < WARP_BATCH;++i) {
-        for (int it = 0;it < WARP_ITERATIONS;++it) {
-            elements[i][it] = softmax_input_reg[i][it];
-        }
-    }
+   // acc_t *elements = softmax_input_reg;
+   // for (int i = 0;i < WARP_BATCH;++i) {
+   //     for (int it = 0;it < WARP_ITERATIONS;++it) {
+   //         elements[i][it] = softmax_input_reg[i][it];
+   //     }
+   // }
  
     constexpr uint32_t  FULL_MASK = 0xffffffff;
  
@@ -1721,7 +1721,7 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
            grad_reg[i][it] = grad_reg[i][it] * elements[i][it];
 	}
     }
-    acc_t *output_reg = elements;
+   // acc_t *output_reg = elements;
 
     acc_t grad_sum[WARP_BATCH];
     #pragma unroll
@@ -1745,9 +1745,9 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
             if (element_index < element_count) {
                 // compute gradients
                 if (is_log_softmax) {
-                    gradInput[i*element_count+it*WARP_SIZE] = (grad_reg[i][it] - std::exp(output_reg[i][it]) * sum[i]);
+                    gradInput[i*element_count+it*WARP_SIZE] = (grad_reg[i][it] - std::exp(elements[i][it]) * sum[i]);
                 } else {
-                    gradInput[i*element_count+it*WARP_SIZE] = (grad_reg[i][it] - output_reg[i][it] * sum[i]);
+                    gradInput[i*element_count+it*WARP_SIZE] = (grad_reg[i][it] - elements[i][it] * sum[i]);
                 }
             }
         }
