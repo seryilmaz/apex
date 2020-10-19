@@ -34,7 +34,6 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                                       dropout_prob)
             else:
                 input_lin_results,                                              \
-                #softmax_results,                                                \
                 bmm1_results,                                                \
                 dropout_results,                                                \
                 dropout_mask,                                                   \
@@ -76,7 +75,6 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                               heads_t,                          \
                               matmul2_results,                          \
                               dropout_results,                          \
-                 #             softmax_results,                          \
                               bmm1_results,                          \
                               pad_mask,                          \
                               input_lin_results,                        \
@@ -95,7 +93,6 @@ class FastSelfAttnFunc(torch.autograd.Function) :
         heads_t,                                                        \
         matmul2_results,                                                \
         dropout_results,                                                \
-      #  softmax_results,                                                \
         bmm1_results,                                                \
         pad_mask,                                                \
         input_lin_results,                                              \
@@ -116,7 +113,6 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                                   output_grads,                             \
                                   matmul2_results,                          \
                                   dropout_results,                          \
-       #                           softmax_results,                          \
                                   bmm1_results,                          \
                                   pad_mask,                          \
                                   input_lin_results,                        \
