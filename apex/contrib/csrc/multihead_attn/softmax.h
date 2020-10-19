@@ -1745,9 +1745,9 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
             if (element_index < element_count) {
                 // compute gradients
                 if (is_log_softmax) {
-                    gradInput[i*element_count+it*WARP_SIZE] = (grad_reg[i][it] - std::exp(elements[i][it]) * sum[i]);
+                    gradInput[i*element_count+it*WARP_SIZE] = (grad_reg[i][it] - std::exp(elements[i][it]) * grad_sum[i]);
                 } else {
-                    gradInput[i*element_count+it*WARP_SIZE] = (grad_reg[i][it] - elements[i][it] * sum[i]);
+                    gradInput[i*element_count+it*WARP_SIZE] = (grad_reg[i][it] - elements[i][it] * grad_sum[i]);
                 }
             }
         }
