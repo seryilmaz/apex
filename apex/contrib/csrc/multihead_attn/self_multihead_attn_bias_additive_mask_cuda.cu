@@ -153,6 +153,19 @@ std::vector<torch::Tensor> fwd_cuda(
   }
 
 
+     // auto softmax_results1_cpu = softmax_results1.to(torch::kCPU).to(torch::kFloat32);
+      auto dropout_results_cpu = dropout_results.to(torch::kCPU).to(torch::kFloat32);
+      auto dropout_mask_cpu = dropout_mask.to(torch::kCPU).to(torch::kUInt8);
+      std::cout<<"new kernel /dropout/mask first 20"<<std::endl;
+      for (int i=0; i<20;i++){
+          std::cout<< *(dropout_results_cpu.data_ptr<float>() + i)<<" ";
+      }
+      std::cout<<" dropout mask: ";
+      for (int i=0; i<20;i++){
+          std::cout<< (int)(*(dropout_mask_cpu.data_ptr<uint8_t>() + i))<<" ";
+      }
+      std::cout<<std::endl;
+
   //if (is_training) {
   //  //use at:: function so that C++ version generates the same random mask as python version
   //  auto dropout_tuple = at::_fused_dropout(softmax_results, 1.0f-dropout_prob);
@@ -363,7 +376,9 @@ std::vector<torch::Tensor> bwd_cuda(
 
   // Apply Dropout Mask and Scale by Dropout Probability 
   // Softmax Grad
+  at::Tensor soft_out          = torch::empty_like(dropout_results);
   dispatch_masked_scale_softmax_backward<half, half, float,false>(
+                             static_cast<half*>(soft_out.data_ptr()), 
                              static_cast<half*>(matmul2_grads.data_ptr()), 
                              static_cast<half*>(matmul2_grads.data_ptr()), 
                              reinterpret_cast<half const*>(bmm1_results.data_ptr()),
@@ -376,6 +391,22 @@ std::vector<torch::Tensor> bwd_cuda(
 			     attn_batches*q_seq_len/sequences,
                              attn_batches*q_seq_len);
 
+      auto bmm_results_cpu = bmm1_results.to(torch::kCPU).to(torch::kFloat32);
+      auto soft_out_cpu = soft_out.to(torch::kCPU).to(torch::kFloat32);
+      auto matmul2_grads_cpu = matmul2_grads.to(torch::kCPU).to(torch::kFloat32);
+      std::cout<<"backward bmm results and matmul2 grads"<<std::endl;
+      for (int i=0; i<20;i++){
+          std::cout<< *(bmm_results_cpu.data_ptr<float>() + i)<<" ";
+      }
+      std::cout<<" matmul2_grads: ";
+      for (int i=0; i<20;i++){
+          std::cout<< (*(matmul2_grads_cpu.data_ptr<float>() + i))<<" ";
+      }
+      std::cout<<" softmax outputs: ";
+      for (int i=0; i<20;i++){
+          std::cout<< (*(soft_out_cpu.data_ptr<float>() + i))<<" ";
+      }
+      std::cout<<std::endl;
   // Matmul1 Dgrad1
   gemm_switch_fp32accum(     state, 
                              a_layout_n, 
