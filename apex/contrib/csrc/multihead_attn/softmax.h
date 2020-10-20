@@ -30,8 +30,8 @@ namespace {
     __device__ __inline__ void copy_vector<float, 1>(float *dst, const float *src) { *dst = *src; }
  
     template <>
-    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((__half2*)dst) = *((__half2*)src); *((__half2*)(dst+2)) = *((__half2*)(src+2));   }
-    
+//    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((__half2*)dst) = *((__half2*)src); *((__half2*)(dst+2)) = *((__half2*)(src+2));   }
+    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3);}    
     template <>
     __device__ __inline__ void copy_vector<uint8_t, 1>(uint8_t *dst, const uint8_t *src) { *dst = *src; }
     
@@ -53,8 +53,8 @@ namespace {
     }
     template <>
     __device__ __inline__ void apply_additive_mask<__half, 4>(__half *dst, const __half *additive_mask) {
-    *((__half2*) dst) = __hadd2(*((__half2*) dst), *((__half2*) additive_mask)); 
-    *((__half2*) (dst+2)) = __hadd2(*((__half2*)(dst+2)), *((__half2*) (additive_mask+2))); }
+  //  *((__half2*) dst) = __hadd2(*((__half2*) dst), *((__half2*) additive_mask)); 
+  //  *((__half2*) (dst+2)) = __hadd2(*((__half2*)(dst+2)), *((__half2*) (additive_mask+2))); }
     
 } // namespace anonymous
 
