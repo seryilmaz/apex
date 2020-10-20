@@ -36,7 +36,7 @@ namespace {
     __device__ __inline__ void copy_vector<uint8_t, 1>(uint8_t *dst, const uint8_t *src) { *dst = *src; }
     
     template <>
-    __device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) { *((float*) dst) = *((float*) src); }
+    __device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) {*(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3); }
    
     template <typename Datatype, int ELEMENTS_PER_LDG>
     __device__ __inline__ void apply_mask(Datatype *dst, Datatype value, const uint8_t *src);
@@ -408,7 +408,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
                 float4 rand = curand_uniform4(&state);
                 float *rand_ptr = (float*)(&rand);    
                 for (int element = 0;element < ELEMENTS_PER_LDG_STG;++element) {
-		 //   softmax_out[element] = (elements[i][it + element] / sum[i]);	
+		    softmax_out[element] = (elements[i][it + element] / sum[i]);	
                     rand_ptr[element] = rand_ptr[element] <= p;       
                     if (rand_ptr[element] == 0) out[element] = 0.0;
                     else out[element] = (half)pinv * (softmax_out[element]);

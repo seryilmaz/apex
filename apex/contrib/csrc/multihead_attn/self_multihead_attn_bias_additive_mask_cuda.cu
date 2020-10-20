@@ -155,7 +155,12 @@ std::vector<torch::Tensor> fwd_cuda(
 
      // auto softmax_results1_cpu = softmax_results1.to(torch::kCPU).to(torch::kFloat32);
       auto dropout_results_cpu = dropout_results.to(torch::kCPU).to(torch::kFloat32);
+      auto bmm1_results_cpu = bmm1_results.to(torch::kCPU).to(torch::kFloat32);
       auto dropout_mask_cpu = dropout_mask.to(torch::kCPU).to(torch::kUInt8);
+      std::cout<<"new kernel bmm1 first 20"<<std::endl;
+      for (int i=0; i<20;i++){
+          std::cout<< *(bmm1_results_cpu.data_ptr<float>() + i)<<" ";
+      }
       std::cout<<"new kernel /dropout/mask first 20"<<std::endl;
       for (int i=0; i<20;i++){
           std::cout<< *(dropout_results_cpu.data_ptr<float>() + i)<<" ";
