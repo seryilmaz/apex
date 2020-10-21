@@ -1621,7 +1621,7 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
     grad += thread_offset_vector;
     //soft_out += thread_offset;
     softmax_input += thread_offset_vector;
-    gradInput += thread_offset;
+    gradInput += thread_offset_vector;
     mask += thread_offset_vector;
 
     // The nested loops over WARP_BATCH and then WARP_ITERATIONS can be simplified to one loop,
@@ -1652,9 +1652,9 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
                 int itr_idx = i * element_count + itr_jmp;
                 copy_vector<input_t, ELEMENTS_PER_LDG_STG>(&elements_input[i][it], softmax_input + itr_idx);
                 apply_additive_mask<input_t, ELEMENTS_PER_LDG_STG>(&elements_input[i][it], curr_mask + itr_jmp); //(__half)-std::numeric_limits<float>::infinity()
-                input_t mask_temp[ELEMENTS_PER_LDG_STG];
+                uint8_t mask_temp[ELEMENTS_PER_LDG_STG];
                 input_t grad_temp[ELEMENTS_PER_LDG_STG];
-                copy_vector<input_t, ELEMENTS_PER_LDG_STG>(&mask_temp[0], mask + itr_idx);
+                copy_vector<uint8_t, ELEMENTS_PER_LDG_STG>(&mask_temp[0], mask + itr_idx);
                 copy_vector<input_t, ELEMENTS_PER_LDG_STG>(&grad_temp[0], grad + itr_idx);
                 #pragma unroll
                 for (int element = 0;element < ELEMENTS_PER_LDG_STG;++element) {
