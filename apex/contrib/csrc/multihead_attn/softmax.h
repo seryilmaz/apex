@@ -31,12 +31,12 @@ namespace {
  
     template <>
 //    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((__half2*)dst) = *((__half2*)src); *((__half2*)(dst+2)) = *((__half2*)(src+2));   }
-    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3);}    
+    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((int64_t*) dst) = *((int64_t*) src); }  //{ *(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3);}    
     template <>
     __device__ __inline__ void copy_vector<uint8_t, 1>(uint8_t *dst, const uint8_t *src) { *dst = *src; }
     
     template <>
-    __device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) {*(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3); }
+    __device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) {*((int32_t*) dst) = *((int32_t*) src); }//{*(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3); }
    
     template <typename Datatype, int ELEMENTS_PER_LDG>
     __device__ __inline__ void apply_mask(Datatype *dst, Datatype value, const uint8_t *src);
@@ -53,12 +53,12 @@ namespace {
     }
     template <>
     __device__ __inline__ void apply_additive_mask<__half, 4>(__half *dst, const __half *additive_mask) {
-  //  *((__half2*) dst) = __hadd2(*((__half2*) dst), *((__half2*) additive_mask)); 
-  //  *((__half2*) (dst+2)) = __hadd2(*((__half2*)(dst+2)), *((__half2*) (additive_mask+2))); }
-      *dst += *additive_mask;
-      *(dst+1) += *(additive_mask+1);
-      *(dst+2) += *(additive_mask+2);
-      *(dst+3) += *(additive_mask+3);}    
+    *((__half2*) dst) = __hadd2(*((__half2*) dst), *((__half2*) additive_mask)); 
+    *((__half2*) (dst+2)) = __hadd2(*((__half2*)(dst+2)), *((__half2*) (additive_mask+2))); }
+  //    *dst += *additive_mask;
+  //    *(dst+1) += *(additive_mask+1);
+  //    *(dst+2) += *(additive_mask+2);
+  //    *(dst+3) += *(additive_mask+3);}    
 } // namespace anonymous
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -309,6 +309,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
         int batch_element_count = (i >= local_batches) ? 0 : element_count;
         int pad_thread_offset = ( (first_batch + i) / pad_batch_stride) * stride + ELEMENTS_PER_LDG_STG * local_idx;
         const half* curr_mask    = pad_mask + pad_thread_offset;
+        #pragma unroll
         for (int it = 0;it < WARP_ITERATIONS;it += ELEMENTS_PER_LDG_STG) {
             int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
             #pragma unroll
@@ -328,7 +329,9 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
     }
     // convert input_t to acc_t
     acc_t elements[WARP_BATCH][WARP_ITERATIONS];
+    #pragma unroll
     for (int i = 0;i < WARP_BATCH;++i) {
+        #pragma unroll
         for (int it = 0;it < WARP_ITERATIONS;++it) {
             elements[i][it] = elements_input[i][it];
         }
@@ -1632,6 +1635,7 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
         int batch_element_count = (i >= local_batches) ? 0 : element_count;
         int pad_thread_offset = ( (first_batch + i) / pad_batch_stride) * stride + local_idx;
         const input_t* curr_mask    = pad_mask + pad_thread_offset;
+        #pragma unroll
         for (int it = 0;  it < WARP_ITERATIONS;  ++it) {
             int element_index = local_idx + it * WARP_SIZE;
             if (element_index < batch_element_count) {
