@@ -1601,7 +1601,7 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
     constexpr int WARP_SIZE = (next_power_of_two < C10_WARP_SIZE) ? next_power_of_two : C10_WARP_SIZE;
     constexpr int WARP_ITERATIONS = next_power_of_two / WARP_SIZE;
     constexpr int WARP_BATCH = (next_power_of_two <= 128) ? 2 : 1;
-
+    constexpr int ELEMENTS_PER_LDG_STG = 4;
     int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
 
     // batch_size might not be a multiple of WARP_BATCH. Check how
@@ -1615,13 +1615,14 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
 
     // the first element to process by the current thread
     int thread_offset = first_batch * stride + local_idx;
+    int thread_offset_vector =  first_batch * stride + ELEMENTS_PER_LDG_STG * local_idx;
 
 
-    grad += thread_offset;
+    grad += thread_offset_vector;
     //soft_out += thread_offset;
-    softmax_input += thread_offset;
+    softmax_input += thread_offset_vector;
     gradInput += thread_offset;
-    mask += thread_offset;
+    mask += thread_offset_vector;
 
     // The nested loops over WARP_BATCH and then WARP_ITERATIONS can be simplified to one loop,
     // but I think doing so would obfuscate the logic of the algorithm, thus I chose to keep
@@ -1630,40 +1631,89 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
 
     // load data from global memory
     acc_t grad_reg[WARP_BATCH][WARP_ITERATIONS]  ;
-    acc_t elements[WARP_BATCH][WARP_ITERATIONS] ;
+    input_t elements_input[WARP_BATCH][WARP_ITERATIONS] ;
     for (int i = 0;  i < WARP_BATCH;  ++i) {
         int batch_element_count = (i >= local_batches) ? 0 : element_count;
-        int pad_thread_offset = ( (first_batch + i) / pad_batch_stride) * stride + local_idx;
+        int pad_thread_offset = ( (first_batch + i) / pad_batch_stride) * stride + ELEMENTS_PER_LDG_STG * local_idx;
         const input_t* curr_mask    = pad_mask + pad_thread_offset;
         #pragma unroll
-        for (int it = 0;  it < WARP_ITERATIONS;  ++it) {
-            int element_index = local_idx + it * WARP_SIZE;
+        for (int it = 0;  it < WARP_ITERATIONS;  it += ELEMENTS_PER_LDG_STG) {
+            int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
+
+            #pragma unroll
+            for (int element = 0;element < ELEMENTS_PER_LDG_STG;++element) {
+		//masking_value is a large negative value
+                elements_input[i][it + element] = -10000;
+		grad_reg[i][it] = acc_t(0);
+            }
+ 
             if (element_index < batch_element_count) {
                 int itr_jmp = it * WARP_SIZE;
                 int itr_idx = i * element_count + itr_jmp;
-                grad_reg[i][it] = ((acc_t)mask[itr_idx] * (acc_t)grad[itr_idx] * (acc_t)scale );
-                elements[i][it] = softmax_input[itr_idx];
-		elements[i][it] += acc_t(*(curr_mask + itr_jmp));
-            } else {
-                grad_reg[i][it] = acc_t(0);
-		// just uing a very small number so the softmax output becomes 0
-                elements[i][it] = acc_t(-10000);
-            }
+                copy_vector<input_t, ELEMENTS_PER_LDG_STG>(&elements_input[i][it], softmax_input + itr_idx);
+                apply_additive_mask<input_t, ELEMENTS_PER_LDG_STG>(&elements_input[i][it], curr_mask + itr_jmp); //(__half)-std::numeric_limits<float>::infinity()
+                input_t mask_temp[ELEMENTS_PER_LDG_STG];
+                input_t grad_temp[ELEMENTS_PER_LDG_STG];
+                copy_vector<input_t, ELEMENTS_PER_LDG_STG>(&mask_temp[0], mask + itr_idx);
+                copy_vector<input_t, ELEMENTS_PER_LDG_STG>(&grad_temp[0], grad + itr_idx);
+                #pragma unroll
+                for (int element = 0;element < ELEMENTS_PER_LDG_STG;++element) {
+                    grad_reg[i][it+element] = ((acc_t)mask_temp[element] * (acc_t)grad_temp[element] * (acc_t)scale );
+                }
+	    } 
+
         }
     }
-    
+   
+
+
+//    int thread_offset =  first_batch * stride + ELEMENTS_PER_LDG_STG * local_idx;
+//    src += thread_offset;
+//    dst += thread_offset;
+//    softmax_results += thread_offset;
+//    dropout_mask += thread_offset;
+// 
+//    // load data from global memory
+//    input_t elements_input[WARP_BATCH][WARP_ITERATIONS];
+//    for (int i = 0;i < WARP_BATCH;++i) {
+//        int batch_element_count = (i >= local_batches) ? 0 : element_count;
+//        int pad_thread_offset = ( (first_batch + i) / pad_batch_stride) * stride + ELEMENTS_PER_LDG_STG * local_idx;
+//        const half* curr_mask    = pad_mask + pad_thread_offset;
+//        #pragma unroll
+//        for (int it = 0;it < WARP_ITERATIONS;it += ELEMENTS_PER_LDG_STG) {
+//            int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
+//            #pragma unroll
+//            for (int element = 0;element < ELEMENTS_PER_LDG_STG;++element) {
+//		//masking_value is a large negative value
+//                elements_input[i][it + element] = -10000;
+//            }
+// 
+//            if (element_index < batch_element_count) {
+//                int itr_jmp = it * WARP_SIZE;
+//                int itr_idx = i * element_count + itr_jmp;
+//                copy_vector<input_t, ELEMENTS_PER_LDG_STG>(&elements_input[i][it], src + itr_idx);
+//                apply_additive_mask<input_t, ELEMENTS_PER_LDG_STG>(&elements_input[i][it], curr_mask + itr_jmp); //(__half)-std::numeric_limits<float>::infinity()
+//	    } 
+// 
+//        }
+//    }
+//
+
+
     //need to multiple grad_reg with softmax output once it is computed
  
     // load data from global memory
  
     // convert input_t to acc_t
     // TODO : remove this, input is already acc_t type in register
-   // acc_t *elements = softmax_input_reg;
-   // for (int i = 0;i < WARP_BATCH;++i) {
-   //     for (int it = 0;it < WARP_ITERATIONS;++it) {
-   //         elements[i][it] = softmax_input_reg[i][it];
-   //     }
-   // }
+    acc_t elements[WARP_BATCH][WARP_ITERATIONS] ;
+    #pragma unroll
+    for (int i = 0;i < WARP_BATCH;++i) {
+        #pragma unroll
+        for (int it = 0;it < WARP_ITERATIONS;++it) {
+            elements[i][it] = elements_input[i][it];
+        }
+    }
  
     constexpr uint32_t  FULL_MASK = 0xffffffff;
  
@@ -1742,22 +1792,31 @@ __global__ void masked_scale_softmax_warp_backward(output_t *gradInput, const in
     }
     warp_reduce_sum<acc_t, WARP_BATCH, WARP_SIZE>(grad_sum);
 
+
     // store result
     #pragma unroll
     for (int i = 0;  i < WARP_BATCH;  ++i) {
         if (i >= local_batches)
             break;
         #pragma unroll
-        for (int it = 0;  it < WARP_ITERATIONS;  ++it) {
-            int element_index = local_idx + it * WARP_SIZE;
+        for (int it = 0;  it < WARP_ITERATIONS;  it += ELEMENTS_PER_LDG_STG) {
+            int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
             if (element_index < element_count) {
                 // compute gradients
 		//soft_out[i*element_count+it*WARP_SIZE] = elements[i][it];
-                if (is_log_softmax) {
-                    gradInput[i*element_count+it*WARP_SIZE] = (grad_reg[i][it] - std::exp(elements[i][it]) * grad_sum[i]);
-                } else {
-                    gradInput[i*element_count+it*WARP_SIZE] = (grad_reg[i][it] - elements[i][it] * grad_sum[i]);
-                }
+		output_t grad_input_reg[ELEMENTS_PER_LDG_STG];
+                #pragma unroll
+		for (int element=0; element<ELEMENTS_PER_LDG_STG; element++) {
+                    if (is_log_softmax) {
+                        grad_input_reg[element] = (grad_reg[i][it+element] - std::exp(elements[i][it+element]) * grad_sum[i]);
+                    } else {
+                        grad_input_reg[element] = (grad_reg[i][it+element] - elements[i][it+element] * grad_sum[i]);
+                    }
+		 
+		}
+    
+                copy_vector<output_t, ELEMENTS_PER_LDG_STG>(gradInput + i * element_count + it * WARP_SIZE, grad_input_reg);
+
             }
         }
     }
