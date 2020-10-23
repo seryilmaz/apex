@@ -409,7 +409,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
                 output_t softmax_out[ELEMENTS_PER_LDG_STG];
                 uint8_t dropout_mask_temp[ELEMENTS_PER_LDG_STG];
                 //generate a vector of random numbers here 
-                float rand = curand_uniform(&state);
+                float4 rand = curand_uniform4(&state);
                 float *rand_ptr = (float*)(&rand);    
                 for (int element = 0;element < ELEMENTS_PER_LDG_STG;++element) {
 		    softmax_out[element] = (elements[i][it + element] / sum[i]);	
