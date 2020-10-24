@@ -282,7 +282,7 @@ bool dispatch_softmax(output_t *dst, const input_t *src, int softmax_elements, i
 }
 
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE=32, int ELEMENTS_PER_LDG_STG>
-__global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, output_t *softmax_results, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training)
+__global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training)
 {
  
     int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
@@ -304,7 +304,6 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
         int thread_offset =  first_batch * stride + ELEMENTS_PER_LDG_STG * local_idx;
         src += thread_offset;
         dst += thread_offset;
-        softmax_results += thread_offset;
         dropout_mask += thread_offset;
      
         // load data from global memory
@@ -335,7 +334,6 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
         int thread_offset =  first_batch * stride + local_idx;
         src += thread_offset;
         dst += thread_offset;
-        softmax_results += thread_offset;
         dropout_mask += thread_offset;
      
         // load data from global memory
@@ -499,7 +497,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
 // WARP_SIZE number of elements working on a single batch, has to be a power of two.
 // ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t, typename acc_t>
-using additive_masked_softmax_dropout_forward_func = void(*)(output_t *dst, output_t* softmax_results, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training);
+using additive_masked_softmax_dropout_forward_func = void(*)(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training);
 
 
 template <typename input_t, typename output_t, typename acc_t>
@@ -557,7 +555,7 @@ bool warp_additive_masked_softmax_dropout_kernel(int log2_elements, int &warp_si
 
 
 template<typename input_t, typename output_t, typename acc_t>
-bool dispatch_additive_masked_softmax_dropout(output_t *dst, output_t *softmax_results, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int totalElements, int softmax_elements, int softmax_elements_stride, int batch_count, int pad_batch_stride, float p, bool is_training, cudaStream_t streamid)// p is the probability to keep, not drop
+bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int totalElements, int softmax_elements, int softmax_elements_stride, int batch_count, int pad_batch_stride, float p, bool is_training, cudaStream_t streamid)// p is the probability to keep, not drop
 {
 	
     if (softmax_elements == 0) {
