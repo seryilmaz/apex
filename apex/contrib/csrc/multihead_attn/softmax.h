@@ -1925,7 +1925,7 @@ __global__ void masked_scale_softmax_warp_backward_recompute(output_t *gradInput
 
 
 template<typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
-using masked_scale_softmax_warp_backward_recompute_func = void(*)(output_t *gradInput, const input_t *grad, const input_t *softmax_input, const input_t *pad_mask, const uint8_t *mask, acc_t scale, int batch_size, int stride, int pad_batch_stride, int element_count)
+using masked_scale_softmax_warp_backward_recompute_func = void(*)(output_t *gradInput, const input_t *grad, const input_t *softmax_input, const input_t *pad_mask, const uint8_t *mask, acc_t scale, int batch_size, int stride, int pad_batch_stride, int element_count);
 
 template <typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
 bool masked_scale_softmax_warp_backward_recompute_kernel(int log2_elements, int &warp_size, int &batches_per_warp, masked_scale_softmax_warp_backward_recompute_func<input_t, output_t, acc_t, is_log_softmax> &kernel) {
