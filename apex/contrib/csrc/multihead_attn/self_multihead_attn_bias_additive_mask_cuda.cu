@@ -137,7 +137,8 @@ std::vector<torch::Tensor> fwd_cuda(
                        attn_batches*q_seq_len,
                        attn_batches*q_seq_len/sequences, 
   		       1.0f-dropout_prob,
-  		       is_training);
+  		       is_training, 
+		       stream);
 
 
   // Matmul2
