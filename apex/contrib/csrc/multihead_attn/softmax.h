@@ -585,7 +585,7 @@ using additive_masked_softmax_dropout_forward_func = void(*)(output_t *dst, uint
 
 
 template <typename input_t, typename output_t, typename acc_t>
-bool warp_additive_masked_softmax_dropout_kernel(int log2_elements, int &warp_size, int &batches_per_warp, additive_masked_softmax_dropout_forward_func<input_t, output_t, acc_t> &kernel) {
+bool warp_additive_masked_softmax_dropout_kernel(int element_count, int log2_elements, int &warp_size, int &batches_per_warp, additive_masked_softmax_dropout_forward_func<input_t, output_t, acc_t> &kernel) {
     // determine size of a warp
     const int next_power_of_two = 1 << log2_elements;
     warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
@@ -656,7 +656,7 @@ bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_ma
  
         additive_masked_softmax_dropout_forward_func<input_t, output_t, acc_t> kernel;
         int warp_size, batches_per_warp;
-        if (!warp_additive_masked_softmax_dropout_kernel<input_t, output_t, acc_t>(log2_elements, warp_size, batches_per_warp, kernel)) {
+        if (!warp_additive_masked_softmax_dropout_kernel<input_t, output_t, acc_t>(softmax_elements, log2_elements, warp_size, batches_per_warp, kernel)) {
             return false;
         }
  
@@ -1928,7 +1928,7 @@ template<typename input_t, typename output_t, typename acc_t, bool is_log_softma
 using masked_scale_softmax_warp_backward_recompute_func = void(*)(output_t *gradInput, const input_t *grad, const input_t *softmax_input, const input_t *pad_mask, const uint8_t *mask, acc_t scale, int batch_size, int stride, int pad_batch_stride, int element_count);
 
 template <typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
-bool masked_scale_softmax_warp_backward_recompute_kernel(int log2_elements, int &warp_size, int &batches_per_warp, masked_scale_softmax_warp_backward_recompute_func<input_t, output_t, acc_t, is_log_softmax> &kernel) {
+bool masked_scale_softmax_warp_backward_recompute_kernel(int element_count, int log2_elements, int &warp_size, int &batches_per_warp, masked_scale_softmax_warp_backward_recompute_func<input_t, output_t, acc_t, is_log_softmax> &kernel) {
     // determine size of a warp
     const int next_power_of_two = 1 << log2_elements;
     warp_size = (next_power_of_two < 32) ? next_power_of_two : 32;
@@ -1996,7 +1996,7 @@ bool dispatch_masked_scale_softmax_backward_recompute(output_t *grad_input, cons
  
         masked_scale_softmax_warp_backward_recompute_func<input_t, output_t, acc_t, is_log_softmax> kernel;
         int warp_size, batches_per_warp;
-        if (!masked_scale_softmax_warp_backward_recompute_kernel<input_t, output_t, acc_t, is_log_softmax>(log2_elements, warp_size, batches_per_warp, kernel)) {
+        if (!masked_scale_softmax_warp_backward_recompute_kernel<input_t, output_t, acc_t, is_log_softmax>(softmax_elements, log2_elements, warp_size, batches_per_warp, kernel)) {
             return false;
         }
  
