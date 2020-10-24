@@ -38,8 +38,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                               matmul2_results,                          \
                               dropout_results,                          \
                               softmax_results,                          \
-                              None,                          \
-                              None,                          \
+                              null_tensor,                          \
+                              null_tensor,                          \
                               mask_additive_t,                          \
                               input_lin_results,                        \
                               inputs,                                   \
@@ -71,7 +71,7 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                                       heads_t,                          \
                                       matmul2_results,                          \
                                       dropout_results,                          \
-                                      None,                          \
+                                      null_tensor,                          \
                                       bmm1_results,                          \
                                       pad_mask,                          \
                                       mask_additive_t,                          \
@@ -105,8 +105,8 @@ class FastSelfAttnFunc(torch.autograd.Function) :
                           matmul2_results,                          \
                           dropout_results,                          \
                           softmax_results,                          \
-                          None,                          \
-                          None,                          \
+                          null_tensor,                          \
+                          null_tensor,                          \
                           mask_additive_t,                          \
                           input_lin_results,                        \
                           inputs,                                   \
