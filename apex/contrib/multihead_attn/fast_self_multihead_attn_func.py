@@ -134,7 +134,7 @@ class FastSelfAttnFunc(torch.autograd.Function) :
         dropout_prob_t      = ctx.saved_tensors
 
         if use_biases_t[0]:
-            if mask_additive_t[0]:
+            if not mask_additive_t[0]:
                 input_grads,                                                    \
                 input_weight_grads,                                             \
                 output_weight_grads,                                           \
