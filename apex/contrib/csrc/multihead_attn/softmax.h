@@ -298,6 +298,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
     int local_idx = threadIdx.x;
     //vectorize if element_count is multiple of 4, else don't vectorize
     bool flag_vec4 = element_count & 3 == 0;
+    input_t elements_input[WARP_BATCH][WARP_ITERATIONS];
 
     if (flag_vec4) {
         int thread_offset =  first_batch * stride + ELEMENTS_PER_LDG_STG * local_idx;
@@ -307,7 +308,6 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
         dropout_mask += thread_offset;
      
         // load data from global memory
-        input_t elements_input[WARP_BATCH][WARP_ITERATIONS];
         for (int i = 0;i < WARP_BATCH;++i) {
             int batch_element_count = (i >= local_batches) ? 0 : element_count;
             int pad_thread_offset = ( (first_batch + i) / pad_batch_stride) * stride + ELEMENTS_PER_LDG_STG * local_idx;
@@ -339,7 +339,6 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, outp
         dropout_mask += thread_offset;
      
         // load data from global memory
-        input_t elements_input[WARP_BATCH][WARP_ITERATIONS];
         for (int i = 0;i < WARP_BATCH;++i) {
             int batch_element_count = (i >= local_batches) ? 0 : element_count;
             int pad_thread_offset = ( (first_batch + i) / pad_batch_stride) * stride + local_idx;
@@ -1678,6 +1677,8 @@ __global__ void masked_scale_softmax_warp_backward_recompute(output_t *gradInput
     int local_idx = threadIdx.x % WARP_SIZE;
     //vectorize if a row length is multiple of 4
     int flag_vec4 = element_count & 3 == 0;
+    acc_t grad_reg[WARP_BATCH][WARP_ITERATIONS]  ;
+    input_t elements_input[WARP_BATCH][WARP_ITERATIONS] ;
 
     if (flag_vec4) {
         // the first element to process by the current thread
@@ -1694,8 +1695,6 @@ __global__ void masked_scale_softmax_warp_backward_recompute(output_t *gradInput
         // This should have no impact on performance because the loops are unrolled anyway.
     
         // load data from global memory
-        acc_t grad_reg[WARP_BATCH][WARP_ITERATIONS]  ;
-        input_t elements_input[WARP_BATCH][WARP_ITERATIONS] ;
         for (int i = 0;  i < WARP_BATCH;  ++i) {
             int batch_element_count = (i >= local_batches) ? 0 : element_count;
             int pad_thread_offset = ( (first_batch + i) / pad_batch_stride) * stride + ELEMENTS_PER_LDG_STG * local_idx;
@@ -1744,8 +1743,6 @@ __global__ void masked_scale_softmax_warp_backward_recompute(output_t *gradInput
         // This should have no impact on performance because the loops are unrolled anyway.
     
         // load data from global memory
-        acc_t grad_reg[WARP_BATCH][WARP_ITERATIONS]  ;
-        input_t elements_input[WARP_BATCH][WARP_ITERATIONS] ;
         for (int i = 0;  i < WARP_BATCH;  ++i) {
             int batch_element_count = (i >= local_batches) ? 0 : element_count;
             int pad_thread_offset = ( (first_batch + i) / pad_batch_stride) * stride + local_idx;
