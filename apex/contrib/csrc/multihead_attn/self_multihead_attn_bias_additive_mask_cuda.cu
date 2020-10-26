@@ -139,7 +139,8 @@ std::vector<torch::Tensor> fwd_cuda(
   		       1.0f-dropout_prob,
   		       is_training, 
 		       stream);
-
+  std::cout<<"arguments: "<<std::endl;
+  std::cout<<"  "<<attn_batches*q_seq_len*q_seq_len<<" "<<k_seq_len<<" "<<k_seq_len<<" "<<attn_batches*q_seq_len<<" "<<attn_batches*q_seq_len/sequences<<" "<<1.0f-dropout_prob<<" "<<is_training<<std:endl;
 
   // Matmul2
   gemm_switch_fp32accum(     state, 
