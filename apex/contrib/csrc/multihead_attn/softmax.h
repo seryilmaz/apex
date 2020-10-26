@@ -683,7 +683,7 @@ bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_ma
  
         // compute launch size
         dim3 threads(warp_size, warps_per_block, 1);
-        std::cout<<"inside dispatcher args:  "<<batch_count<<" "<<softmax_elements_stride<<" "<< softmax_elements<<" "<< pad_batch_stride<<" "<<rng_engine_inputs<<" "<<dropout_prob_kernel<<" "<<is_training<<std:endl;
+        std::cout<<"inside dispatcher args:  "<<batch_count<<" "<<softmax_elements_stride<<" "<< softmax_elements<<" "<< pad_batch_stride<<" "<<dropout_prob_kernel<<" "<<is_training<<std::endl;
          
         // launch
         kernel<<<blocks, threads, 0, streamid>>>(dst, dropout_mask, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride, rng_engine_inputs, dropout_prob_kernel, is_training);
