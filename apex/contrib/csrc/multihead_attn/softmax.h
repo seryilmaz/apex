@@ -53,12 +53,12 @@ namespace {
     }
     template <>
     __device__ __inline__ void apply_additive_mask<__half, 4>(__half *dst, const __half *additive_mask) {
-    *((__half2*) dst) = __hadd2(*((__half2*) dst), *((__half2*) additive_mask)); 
-    *((__half2*) (dst+2)) = __hadd2(*((__half2*)(dst+2)), *((__half2*) (additive_mask+2))); }
-  //    *dst += *additive_mask;
-  //    *(dst+1) += *(additive_mask+1);
-  //    *(dst+2) += *(additive_mask+2);
-  //    *(dst+3) += *(additive_mask+3);}    
+  //  *((__half2*) dst) = __hadd2(*((__half2*) dst), *((__half2*) additive_mask)); 
+  //  *((__half2*) (dst+2)) = __hadd2(*((__half2*)(dst+2)), *((__half2*) (additive_mask+2))); }
+      *dst += *additive_mask;
+      *(dst+1) += *(additive_mask+1);
+      *(dst+2) += *(additive_mask+2);
+      *(dst+3) += *(additive_mask+3);}    
 } // namespace anonymous
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
