@@ -31,12 +31,12 @@ namespace {
  
     template <>
 //    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((__half2*)dst) = *((__half2*)src); *((__half2*)(dst+2)) = *((__half2*)(src+2));   }
-    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((int64_t*) dst) = *((int64_t*) src); }  //{ *(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3);}    
+    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((float2*) dst) = *((float2*) src); }  //{ *(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3);}    
     template <>
     __device__ __inline__ void copy_vector<uint8_t, 1>(uint8_t *dst, const uint8_t *src) { *dst = *src; }
     
     template <>
-    __device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) {*((int32_t*) dst) = *((int32_t*) src); }//{*(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3); }
+    __device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) {*((half2*) dst) = *((half2*) src); }//{*(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3); }
    
     template <typename Datatype, int ELEMENTS_PER_LDG>
     __device__ __inline__ void apply_mask(Datatype *dst, Datatype value, const uint8_t *src);
@@ -285,6 +285,7 @@ template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, i
 __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p)
 {
  
+    assert(ELEMENTS_PER_LDG_STG==4);
     int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
     int tid = blockIdx.x * blockDim.x * blockDim.y + threadIdx.y * blockDim.x + threadIdx.x;
     acc_t pinv = acc_t(1)/p;
