@@ -126,21 +126,31 @@ std::vector<torch::Tensor> fwd_cuda(
                              attn_batches);
   // Padded Softmax
   bool softmax_success = false;
-  softmax_success = dispatch_additive_masked_softmax_dropout<half, half, float>(
-                       reinterpret_cast<half*>(dropout_results_ptr),
-                       (is_training) ? reinterpret_cast<uint8_t*>(dropout_mask.data_ptr<uint8_t>()) : nullptr,
-                       reinterpret_cast<const half*>(bmm1_results_ptr),
-                       pad_mask,
-  		       attn_batches*q_seq_len*q_seq_len,
-                       k_seq_len,
-                       k_seq_len,
-                       attn_batches*q_seq_len,
-                       attn_batches*q_seq_len/sequences, 
-  		       1.0f-dropout_prob,
-  		       is_training, 
-		       stream);
+  if (is_training) {
+      softmax_success = dispatch_additive_masked_softmax_dropout<half, half, float>(
+                           reinterpret_cast<half*>(dropout_results_ptr),
+                           (is_training) ? reinterpret_cast<uint8_t*>(dropout_mask.data_ptr<uint8_t>()) : nullptr,
+                           reinterpret_cast<const half*>(bmm1_results_ptr),
+                           pad_mask,
+      		           attn_batches*q_seq_len*q_seq_len,
+                           k_seq_len,
+                           k_seq_len,
+                           attn_batches*q_seq_len,
+                           attn_batches*q_seq_len/sequences, 
+      		           1.0f-dropout_prob,
+		           stream);
+  } else {
+      softmax_success = dispatch_additive_masked_softmax<half, half, float>(
+                             reinterpret_cast<half*>(dropout_results_ptr),//this is actually softmax results, but making it consistent for the next function
+                             reinterpret_cast<const half*>(bmm1_results_ptr),
+                             pad_mask,
+                             k_seq_len,
+                             k_seq_len,
+                             attn_batches*q_seq_len,
+                             attn_batches*q_seq_len/sequences);
+  }
   std::cout<<"arguments: "<<std::endl;
-  std::cout<<"  "<<attn_batches*q_seq_len*q_seq_len<<" "<<k_seq_len<<" "<<k_seq_len<<" "<<attn_batches*q_seq_len<<" "<<attn_batches*q_seq_len/sequences<<" "<<1.0f-dropout_prob<<" "<<is_training<<std:endl;
+  std::cout<<"  "<<attn_batches*q_seq_len*q_seq_len<<" "<<k_seq_len<<" "<<k_seq_len<<" "<<attn_batches*q_seq_len<<" "<<attn_batches*q_seq_len/sequences<<" "<<1.0f-dropout_prob<<" "<<is_training<<std::endl;
 
   // Matmul2
   gemm_switch_fp32accum(     state, 

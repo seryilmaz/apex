@@ -282,7 +282,7 @@ bool dispatch_softmax(output_t *dst, const input_t *src, int softmax_elements, i
 }
 
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE=32, int ELEMENTS_PER_LDG_STG>
-__global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training)
+__global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p)
 {
  
     int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
@@ -388,6 +388,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint
             sum[i] += __shfl_xor_sync(FULL_MASK, sum[i], offset, WARP_SIZE);
         }
     }
+
     curandStatePhilox4_32_10_t state;
     curand_init(
       seeds.first,
@@ -395,6 +396,23 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint
       seeds.second,
       &state);
      
+    uint8_t rands[WARP_BATCH][WARP_ITERATIONS];
+    float4 rand_num;
+    #pragma unroll
+    for (int i = 0;i < WARP_BATCH;++i) {
+	#pragma unroll
+        for (int it = 0;it < WARP_ITERATIONS;it+=ELEMENTS_PER_LDG_STG) {
+            //elements[i][it] = expf(elements[i][it] - max_value[i]);
+		rand_num = curand_uniform4(&state);
+                rands[i][it] = (rand_num.x <= p) > 0.5;  
+                rands[i][it+1] = (rand_num.y <= p) > 0.5;
+                rands[i][it+2] = (rand_num.z <= p) > 0.5;
+                rands[i][it+3] = (rand_num.w <= p) > 0.5;
+                copy_vector<uint8_t, ELEMENTS_PER_LDG_STG>(dropout_mask + i * element_count + it * WARP_SIZE, &rands[i][it]);
+
+        }
+    }
+
     // store result
     #pragma unroll
     for (int i = 0;i < WARP_BATCH;++i) {
@@ -405,20 +423,21 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint
             int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
             if (element_index < element_count) {
                 output_t out[ELEMENTS_PER_LDG_STG];
-                acc_t softmax_out[ELEMENTS_PER_LDG_STG];
-                uint8_t dropout_mask_temp[ELEMENTS_PER_LDG_STG];
+                //acc_t softmax_out[ELEMENTS_PER_LDG_STG];
+                //uint8_t dropout_mask_temp[ELEMENTS_PER_LDG_STG];
                 //generate a vector of random numbers here 
-                float4 rand = curand_uniform4(&state);
-                float *rand_ptr = (float*)(&rand);    
+                //float4 rand = curand_uniform4(&state);
+                //float *rand_ptr = (float*)(&rand);    
                 #pragma unroll
                 for (int element = 0;element < ELEMENTS_PER_LDG_STG;++element) {
-    	        softmax_out[element] = (elements[i][it + element] / sum[i]);	
-                    rand_ptr[element] = rand_ptr[element] <= p;       
-                    out[element] = rand_ptr[element] * pinv * softmax_out[element];
-    	        if (is_training) dropout_mask_temp[element] = rand_ptr[element] > 0.5; // just to distinguish 0.0f and 1.0f 
+    	        //softmax_out[element] = (elements[i][it + element] / sum[i]);	
+                    //rand_ptr[element] = rand_ptr[element] <= p;       
+                    //out[element] = rand_ptr[element] * pinv * softmax_out[element];
+                    out[element] = rands[i][it+element] * (pinv * (elements[i][it + element] / sum[i]));
+    	        //dropout_mask_temp[element] = rand_ptr[element] > 0.5; // just to distinguish 0.0f and 1.0f 
                 }
                 copy_vector<output_t, ELEMENTS_PER_LDG_STG>(dst + i * element_count + it * WARP_SIZE, out);
-                if (is_training) copy_vector<uint8_t, ELEMENTS_PER_LDG_STG>(dropout_mask + i * element_count + it * WARP_SIZE, dropout_mask_temp);
+    //            copy_vector<uint8_t, ELEMENTS_PER_LDG_STG>(dropout_mask + i * element_count + it * WARP_SIZE, dropout_mask_temp);
     
             }
             else {
@@ -430,7 +449,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint
 
 
 template <typename input_t, typename output_t, typename acc_t, int WARP_BATCH, int WARP_ITERATIONS, int WARP_SIZE=32>
-__global__ void additive_masked_softmax_dropout_warp_forward<input_t, output_t, acc_t, WARP_BATCH, WARP_ITERATIONS, WARP_SIZE, 1>(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training)
+__global__ void additive_masked_softmax_dropout_warp_forward<input_t, output_t, acc_t, WARP_BATCH, WARP_ITERATIONS, WARP_SIZE, 1>(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p)
 {
  
     int first_batch = (blockDim.y * blockIdx.x + threadIdx.y) * WARP_BATCH;
@@ -563,10 +582,10 @@ __global__ void additive_masked_softmax_dropout_warp_forward<input_t, output_t, 
     	        softmax_out[element] = (elements[i][it + element] / sum[i]);	
                     rand_ptr[element] = rand_ptr[element] <= p;       
                     out[element] = rand_ptr[element] * pinv * softmax_out[element];
-    	        if (is_training) dropout_mask_temp[element] = rand_ptr[element] > 0.5; // just to distinguish 0.0f and 1.0f 
+    	            dropout_mask_temp[element] = rand_ptr[element] > 0.5; // just to distinguish 0.0f and 1.0f 
                 }
                 copy_vector<output_t, 1>(dst + i * element_count + it * WARP_SIZE, out);
-                if (is_training) copy_vector<uint8_t, 1>(dropout_mask + i * element_count + it * WARP_SIZE, dropout_mask_temp);
+                copy_vector<uint8_t, 1>(dropout_mask + i * element_count + it * WARP_SIZE, dropout_mask_temp);
     
             }
             else {
@@ -581,7 +600,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward<input_t, output_t, 
 // WARP_SIZE number of elements working on a single batch, has to be a power of two.
 // ELEMENTS_PER_LDG_STG has to be 1.
 template <typename input_t, typename output_t, typename acc_t>
-using additive_masked_softmax_dropout_forward_func = void(*)(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p, bool is_training);
+using additive_masked_softmax_dropout_forward_func = void(*)(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int batch_size, int stride, int element_count, int pad_batch_stride, std::pair<uint64_t,uint64_t> seeds, float p);
 
 
 template <typename input_t, typename output_t, typename acc_t>
@@ -643,13 +662,12 @@ bool warp_additive_masked_softmax_dropout_kernel(int element_count, int log2_ele
 
 
 template<typename input_t, typename output_t, typename acc_t>
-bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int totalElements, int softmax_elements, int softmax_elements_stride, int batch_count, int pad_batch_stride, float p, bool is_training, cudaStream_t streamid)// p is the probability to keep, not drop
+bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_mask, const input_t *src, const input_t *pad_mask, int totalElements, int softmax_elements, int softmax_elements_stride, int batch_count, int pad_batch_stride, float p, cudaStream_t streamid)// p is the probability to keep, not drop
 {
 	
     if (softmax_elements == 0) {
         return true;
     } else if (softmax_elements <= 2048) {
-	float dropout_prob_kernel = is_training ? p : 1.0f;
         // compute function index. there's a function for each power of two size up to 1024.
         int log2_elements = 0;
         while ((1 << log2_elements) < softmax_elements) ++log2_elements;
@@ -683,10 +701,10 @@ bool dispatch_additive_masked_softmax_dropout(output_t *dst, uint8_t *dropout_ma
  
         // compute launch size
         dim3 threads(warp_size, warps_per_block, 1);
-        std::cout<<"inside dispatcher args:  "<<batch_count<<" "<<softmax_elements_stride<<" "<< softmax_elements<<" "<< pad_batch_stride<<" "<<dropout_prob_kernel<<" "<<is_training<<std::endl;
+        std::cout<<"inside dispatcher args:  "<<batch_count<<" "<<softmax_elements_stride<<" "<< softmax_elements<<" "<< pad_batch_stride<<" "<<p<<" "<<std::endl;
          
         // launch
-        kernel<<<blocks, threads, 0, streamid>>>(dst, dropout_mask, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride, rng_engine_inputs, dropout_prob_kernel, is_training);
+        kernel<<<blocks, threads, 0, streamid>>>(dst, dropout_mask, src, pad_mask, batch_count, softmax_elements_stride, softmax_elements, pad_batch_stride, rng_engine_inputs, p);
         return true;
     }
     return false;
