@@ -9,7 +9,7 @@
 
 //#include <ATen/cuda/CUDAContext.h>
 #include <curand_kernel.h>
-
+#include "philox.h"
 //#include <THC/THCGeneral.h>
  
 #include <assert.h>
@@ -390,21 +390,14 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint
         }
     }
 
-    curandStatePhilox4_32_10_t state;
-    curand_init(
-      seeds.first,
-      tid,
-      seeds.second,
-      &state);
-     
+    Philox ph(seeds.first, tid, seeds.second);     
     uint8_t rands[WARP_BATCH][WARP_ITERATIONS];
     float4 rand_num;
     #pragma unroll
     for (int i = 0;i < WARP_BATCH;++i) {
 	#pragma unroll
         for (int it = 0;it < WARP_ITERATIONS;it+=ELEMENTS_PER_LDG_STG) {
-            //elements[i][it] = expf(elements[i][it] - max_value[i]);
-		rand_num = curand_uniform4(&state);
+		rand_num = uniform4(ph());
                 rands[i][it] = (rand_num.x <= p) > 0.5;  
                 rands[i][it+1] = (rand_num.y <= p) > 0.5;
                 rands[i][it+2] = (rand_num.z <= p) > 0.5;
