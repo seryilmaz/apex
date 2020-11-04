@@ -30,13 +30,12 @@ namespace {
     __device__ __inline__ void copy_vector<float, 1>(float *dst, const float *src) { *dst = *src; }
  
     template <>
-//    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((__half2*)dst) = *((__half2*)src); *((__half2*)(dst+2)) = *((__half2*)(src+2));   }
-    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((float2*) dst) = *((float2*) src); }  //{ *(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3);}    
+    __device__ __inline__ void copy_vector<__half, 4>(__half *dst, const __half *src) { *((float2*) dst) = *((float2*) src); } 
     template <>
     __device__ __inline__ void copy_vector<uint8_t, 1>(uint8_t *dst, const uint8_t *src) { *dst = *src; }
     
     template <>
-    __device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) {*((half2*) dst) = *((half2*) src); }//{*(dst) = *(src); *(dst+1)=*(src+1); *(dst+2)=*(src+2); *(dst+3)=*(src+3); }
+    __device__ __inline__ void copy_vector<uint8_t, 4>(uint8_t *dst, const uint8_t *src) {*((half2*) dst) = *((half2*) src); }
    
     template <typename Datatype, int ELEMENTS_PER_LDG>
     __device__ __inline__ void apply_mask(Datatype *dst, Datatype value, const uint8_t *src);
@@ -53,8 +52,6 @@ namespace {
     }
     template <>
     __device__ __inline__ void apply_additive_mask<__half, 4>(__half *dst, const __half *additive_mask) {
-  //  *((__half2*) dst) = __hadd2(*((__half2*) dst), *((__half2*) additive_mask)); 
-  //  *((__half2*) (dst+2)) = __hadd2(*((__half2*)(dst+2)), *((__half2*) (additive_mask+2))); }
       *dst += *additive_mask;
       *(dst+1) += *(additive_mask+1);
       *(dst+2) += *(additive_mask+2);
@@ -417,21 +414,11 @@ __global__ void additive_masked_softmax_dropout_warp_forward(output_t *dst, uint
             int element_index = ELEMENTS_PER_LDG_STG * local_idx + it * WARP_SIZE;
             if (element_index < element_count) {
                 output_t out[ELEMENTS_PER_LDG_STG];
-                //acc_t softmax_out[ELEMENTS_PER_LDG_STG];
-                //uint8_t dropout_mask_temp[ELEMENTS_PER_LDG_STG];
-                //generate a vector of random numbers here 
-                //float4 rand = curand_uniform4(&state);
-                //float *rand_ptr = (float*)(&rand);    
                 #pragma unroll
                 for (int element = 0;element < ELEMENTS_PER_LDG_STG;++element) {
-    	        //softmax_out[element] = (elements[i][it + element] / sum[i]);	
-                    //rand_ptr[element] = rand_ptr[element] <= p;       
-                    //out[element] = rand_ptr[element] * pinv * softmax_out[element];
                     out[element] = rands[i][it+element] * (pinv * (elements[i][it + element] / sum[i]));
-    	        //dropout_mask_temp[element] = rand_ptr[element] > 0.5; // just to distinguish 0.0f and 1.0f 
                 }
                 copy_vector<output_t, ELEMENTS_PER_LDG_STG>(dst + i * element_count + it * WARP_SIZE, out);
-    //            copy_vector<uint8_t, ELEMENTS_PER_LDG_STG>(dropout_mask + i * element_count + it * WARP_SIZE, dropout_mask_temp);
     
             }
             else {
@@ -483,7 +470,7 @@ __global__ void additive_masked_softmax_dropout_warp_forward<input_t, output_t, 
                 int itr_jmp = it * WARP_SIZE;
                 int itr_idx = i * element_count + itr_jmp;
                 copy_vector<input_t, 1>(&elements_input[i][it], src + itr_idx);
-                apply_additive_mask<input_t, 1>(&elements_input[i][it], curr_mask + itr_jmp); //(__half)-std::numeric_limits<float>::infinity()
+                apply_additive_mask<input_t, 1>(&elements_input[i][it], curr_mask + itr_jmp); 
             } 
     
         }
